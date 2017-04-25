@@ -17,18 +17,18 @@ Essentially, I believe users don't want to avoid necessary reboots and remain vu
 1. A scheduled task is pushed at start-up through Group Policy (running a script) to run one hour after any user logs in.  If changes need to be made to the script without waiting for machines to reboot, it can also be pushed through SCCM.
 2. The task runs a local script ("installed" by the former script) that checks for several indicators of a pending reboot.
     1. **If a reboot is NOT pending**, the script sets/modifies another scheduled task to re-run itself in 4 hours.
-    2. **If a reboot is pending**, [an initial window](https://cdn.rawgit.com/teknowledgist/TeknowTools/AutoReboot/InitialWindow.png) pops up informing the user of the need to reboot and gives them a choice to reboot immediately, or "snooze" for 4 hours.
+    2. **If a reboot is pending**, [an initial window](https://cdn.rawgit.com/teknowledgist/TeknowTools/master/AutoReboot/InitialWindow.png) pops up informing the user of the need to reboot and gives them a choice to reboot immediately, or "snooze" for 4 hours.
 3. If the user chooses to "snooze", **they have now acknowledged** that they know the computer needs a reboot.
 4. The acknowledgement initiates a deadline (defaults to Friday at 5pm) for automatically rebooting the system.  Whether the Friday is the current week or next depends on when the acknowledgement occurred (see [Note #2](#Notes)).
-5. After 4 hours, [a second window](https://cdn.rawgit.com/teknowledgist/TeknowTools/AutoReboot/FurtherWindows.png) will appear with a countdown indicating the remaining time until auto-reboot.
+5. After 4 hours, [a second window](https://cdn.rawgit.com/teknowledgist/TeknowTools/master/AutoReboot/FurtherWindows.png) will appear with a countdown indicating the remaining time until auto-reboot.
     1. "Snoozing" will set the window to appear again.
     2. The user selecting "I'll reboot later" is accepting responsibility for rebooting.  If they forget, the auto-reboot will still occur, but they will only get warnings of that in the last 4 hours.
 
 ###### First Window
-![screenshot](https://cdn.rawgit.com/teknowledgist/TeknowTools/AutoReboot/InitialWindow.png)
+![screenshot](https://cdn.rawgit.com/teknowledgist/TeknowTools/master/AutoReboot/InitialWindow.png)
 
 ###### Further Windows
-![screenshot](https://cdn.rawgit.com/teknowledgist/TeknowTools/AutoReboot/FurtherWindows.png)
+![screenshot](https://cdn.rawgit.com/teknowledgist/TeknowTools/master/AutoReboot/FurtherWindows.png)
 
 #### Notes
 1. As provided here, this script is "neutered" for testing/viewing purposes.  It will always think the machine has a pending reboot and will not reboot the machine if requested (or time runs out).   
