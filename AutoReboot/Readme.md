@@ -8,16 +8,16 @@ My workplace uses SCCM to push updates, but when I wanted to configure the SCCM 
 
 Many users in my workplace are "forgetful professor" types.  They are so focused on the cutting-edge or educational problems/research they are paid to do, they don't consider details like computer (or even solar) schedules.  They have desktop computers that are always on with multiple, partially finished email/documents open.  Their schedules may have them in the office only some days and/or they have a somewhat unexpected need to run multi-day computations.  Forcing a reboot with such a "small" window of notice would simply not be acceptable.  Setting up different SCCM client settings schedules and keeping track of (and modifying!) who should be in which and/or disseminating information on when it is "safe" to start computations would be a nightmare too.  And forget teaching them anything.  ;-)
 
-This process is very forgiving and not dependent (once deployed) on GPO (i.e. off campus  laptop computers still check).  A local administrator (i.e. without IT approval) can configure a machine to never reboot, and the process can be delayed/halted within seconds in case of emergencies.  
+The process I have created and outlined here is very forgiving and not dependent (once deployed) on GPO (i.e. off campus  laptop computers still go through the process).  A local administrator (i.e. without IT approval) can configure a machine to never reboot, and the process can be delayed/halted within seconds by any logged in user in case of emergencies.  
 
-Essentially, I believe users don't want to avoid necessary reboots and remain vulnerable; They just want to do it on their schedule and need firm, clear reminders of the need.
+Essentially, I believe users don't want to totally avoid necessary reboots and remain vulnerable; They just need time to accept the eventuality and want to do it somewhat on their schedule, and they need firm, clear reminders of the need.
 
 
 #### Summary of the process
 1. A scheduled task is pushed at start-up through Group Policy (running a script) to run one hour after any user logs in.  If changes need to be made to the script without waiting for machines to reboot, it can also be pushed through SCCM.
-2. The task runs a local script ("installed" by the former script) that checks for several indicators of a pending reboot.
-    1. **If a reboot is NOT pending**, the script sets/modifies another scheduled task to re-run itself in 4 hours.
-    2. **If a reboot is pending**, [an initial window](https://cdn.rawgit.com/teknowledgist/TeknowTools/master/AutoReboot/InitialWindow.png) pops up informing the user of the need to reboot and gives them a choice to reboot immediately, or "snooze" for 4 hours.
+2. The task runs a local script (that is "installed" by the former script) that checks for several indicators of a pending reboot.
+    1. **If a reboot is _NOT_ pending**, the script sets/modifies another scheduled task to re-run itself in 4 hours.
+    2. **If a reboot _is_ pending**, [an initial window](https://cdn.rawgit.com/teknowledgist/TeknowTools/master/AutoReboot/InitialWindow.png) pops up informing the user of the need to reboot and gives them a choice to reboot immediately, or "snooze" for 4 hours.
 3. If the user chooses to "snooze", **they have now acknowledged** that they know the computer needs a reboot.
 4. The acknowledgement initiates a deadline (defaults to Friday at 5pm) for automatically rebooting the system.  Whether the Friday is the current week or next depends on when the acknowledgement occurred (see [Note #2](#Notes)).
 5. After 4 hours, [a second window](https://cdn.rawgit.com/teknowledgist/TeknowTools/master/AutoReboot/FurtherWindows.png) will appear with a countdown indicating the remaining time until auto-reboot.
@@ -31,6 +31,7 @@ Essentially, I believe users don't want to avoid necessary reboots and remain vu
 ![screenshot](https://cdn.rawgit.com/teknowledgist/TeknowTools/master/AutoReboot/FurtherWindows.png)
 
 #### Notes
+0. This does require PowerShell v2+, but otherwise, the code works (in my experience) on Windows XP through Windows 10.
 1. As provided here, this script is "neutered" for testing/viewing purposes.  It will always think the machine has a pending reboot and will not reboot the machine if requested (or time runs out).   
     - The pending reboot check can be re-enabled by swapping the comment/uncomment marks around line 347-349.
     - Reboot/shutdown can be re-enabled by swapping the comment marks around lines 271-273.
@@ -78,10 +79,10 @@ Technical Info
 This is a one-file, [polyglot](https://en.wikipedia.org/wiki/Polyglot_%28computing%29) script with VBScript calling nested PowerShell (v2) code calling further nested HTA code (containing more VBScript and Javascript).  The reasons are as follows:
 
 - I wanted to keep the most-secure, default [PowerShell execution policy](http://windowsitpro.com/powershell/use-execution-policies-control-what-powershell-scripts-can-be-run) at the "Restricted" level.  This level means PowerShell scripts will not run unless initiated by Group Policy or SCCM or are explicitly asked to run from within a PowerShell console or a command window with a specific switch argument.
-- There is apparently no way to call a PowerShell script from a scheduled task (using the cmd switch) and have the PoSh window be hidden.  There is a bug/feature that prevents the usually-working "-windowstyle hidden" switch from working when used in the task scheduler.  A big, black console screen (like the login script does) every 4 hours (even if there is no pending reboot) would not be appreciated by users.
+- There is apparently no way to call a PowerShell script from a scheduled task (using the cmd switch) and have the PoSh window be hidden.  There is a bug/feature that prevents the usually-working "-windowstyle hidden" switch from working when used in the task scheduler.  A big, black console window every 4 hours (even if there is no pending reboot) would not be appreciated by users.
 - While most (probably all) of the PowerShell functionality could be accomplished by VBScript alone, I found a [ready-made PowerShell function](http://blogs.technet.com/b/heyscriptingguy/archive/2013/06/11/determine-pending-reboot-status-powershell-style-part-2.aspx) that determined if a reboot was pending and the project grew from there.  Also, VBScript is very wordy, difficult to read and generally sucks!  :-)
 - Graphical interfaces are possible in PowerShell, but they are long and bulky.  I happened upon an [HTA with a countdown timer](http://www.itsupportguides.com/windows-7/windows-7-shutdown-message-with-countdown-and-cancel/) for rebooting a machine, and modified it to meet our needs.  Adjusting a GUI in HTML and a little VBscript and Javascript is much easier that custom building a PowerShell GUI.
-- It could have been configured to run from multiple script files, but I didn't want to keep track of a mess of files (and the obfuscation of polyglot code makes the tinkerers around here less likely to fiddle).  Also, passing variables from one script to another is a challenge that is easily overcome with nested scripts (by modifying them on the fly).  
+- It could have been configured to run from multiple script files, but I didn't want to keep track of a mess of files (and the obfuscation of polyglot code many non-IT tinkerers less likely to fiddle).  Also, passing variables from one script to another is a challenge that is easily overcome with nested scripts (by modifying them on the fly).  
 
  A bit more detail on how the script works:
 
@@ -99,7 +100,7 @@ This is a one-file, [polyglot](https://en.wikipedia.org/wiki/Polyglot_%28computi
     1. Registry for: Component Based Servicing (Windows Vista/2008+)
     2. Registry for: Windows Update / Auto Update (Windows 2003+)
     3. WMI for:  DetermineIfRebootPending method of SCCM 2012 Clients
-    4. Registry for: PendingFileRenameOperations (Windows 2003+).  *This has been disabled as it was flagged too often for users' patience.*
+    4. Registry for: PendingFileRenameOperations (Windows 2003+).  *This has been disabled as it tried the patience of users because it was so frequent.*
 4.  If there is a pending reboot and the machine has not rebooted in 24 hours:
     1. A check for an active, "shutdown.xml" log file and ensure it was created **after** the last boot.
     2. Establish a task service that triggers on logoff events to cause the system to reboot instead.
@@ -129,7 +130,7 @@ An [HTA](https://en.wikipedia.org/wiki/HTML_Application) is essentially an HTML 
 - The reboot logo:
     - Is converted to a PNG graphics file from [here](https://upload.wikimedia.org/wikipedia/commons/f/f5/Reset_button.svg)
     - Has then been encoded (using [this site](https://www.base64-image.de/) into [Base64](https://en.wikipedia.org/wiki/Base64) (with ~23,050 characters) to allow it to exist within this single text file.
-    - Can be replaced with any Base64 version of a PNG graphic.  (We use the official, University logo internally.)
+    - Can be replaced with any Base64 version of a PNG graphic.  (I use the official, University logo internally.)
 
 Deployment
 ---
