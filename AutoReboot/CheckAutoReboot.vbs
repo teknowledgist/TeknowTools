@@ -89,9 +89,9 @@
 '.NOTES
 '   Copyright 2015 Erich Hammer
 '
-'   This script/information (excepting the logo) is free: you can redistribute 
-'   it and/or modify it under the terms of the GNU General Public License 
-'   as published by the Free Software Foundation, either version 2 of the 
+'   This script/information is free: you can redistribute it and/or
+'   modify it under the terms of the GNU General Public License as
+'   published by the Free Software Foundation, either version 2 of the 
 '   License, or (at your option) any later version.
 '
 '   This script is distributed in the hope that it will be useful,
