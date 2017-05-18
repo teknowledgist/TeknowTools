@@ -6,7 +6,7 @@ This page is intended to explain the Auto-reboot process I created for the colle
 #### Why
 My workplace uses SCCM to push updates, but when I wanted to configure the SCCM client to auto-reboot based on need, I discovered that the notification time-window has a hard-coded maximum of 24 hours.  Also, once the pending reboot is recognized, it is somewhat non-trivial (and definitely non-immediate -- as is *everything* with SCCM) to stop it in case of an emergency.  
 
-Many users in my workplace are "forgetful professor" types.  They are so focused on the cutting-edge or educational problems/research they are paid to do, they don't consider details like computer (or even solar) schedules.  They have desktop computers that are always on with multiple, partially finished email/documents open.  Their schedules may have them in the office only some days and/or they have a somewhat unexpected need to run multi-day computations.  Forcing a reboot with such a "small" window of notice would simply not be acceptable.  Setting up different SCCM client settings schedules and keeping track of (and modifying!) who should be in which and/or disseminating information on when it is "safe" to start computations would be a nightmare too.  And forget teaching them anything.  ;-)
+Many users in my workplace are "forgetful professor" types.  They are so focused on the cutting-edge or educational problems/research they are paid to do, they don't consider details like computer (or even solar) schedules.  They have desktop computers that are always on with multiple, partially finished email/documents open.  Their schedules may have them in the office only some days and/or they have a somewhat unexpected need to run multi-day computations.  Forcing a reboot with such a "small" window of notice would simply not be acceptable.  Setting up different SCCM client settings schedules and keeping track of (and modifying!) who should be in which and/or disseminating information on when it is "safe" to start computations would be a nightmare too.  And forget teaching them anything.  :wink:
 
 The process I have created and outlined here is very forgiving and not dependent (once deployed) on GPO (i.e. off campus  laptop computers still go through the process).  A local administrator (i.e. without IT approval) can configure a machine to never reboot, and the process can be delayed/halted within seconds by any logged in user in case of emergencies.  
 
@@ -131,6 +131,7 @@ An [HTA](https://en.wikipedia.org/wiki/HTML_Application) is essentially an HTML 
     - Is converted to a PNG graphics file from [here](https://upload.wikimedia.org/wikipedia/commons/f/f5/Reset_button.svg)
     - Has then been encoded (using [this site](https://www.base64-image.de/) into [Base64](https://en.wikipedia.org/wiki/Base64) (with ~23,050 characters) to allow it to exist within this single text file.
     - Can be replaced with any Base64 version of a PNG graphic.  (I use the official, University logo internally.)
+    - Is at around line #656 of the .vbs.  Just turn off wrapping and look for the **really** long line. :smile:
 
 Deployment
 ---
