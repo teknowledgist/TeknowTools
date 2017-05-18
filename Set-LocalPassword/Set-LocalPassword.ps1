@@ -3,19 +3,24 @@
    Sets a local password based on a human-computable rubric.
 .Description
    This script is intended to be called in a startup script for setting the 
-   password of a local administrator account.  The script should be called from 
-   a Group Policy Object that is filtered to only allow domain computers and 
-   OU/Domain admins read access.  The password can be built from a specified set 
-   of attributes generally known or accessible to technicians who support the 
-   computer.  The goal is to adequately secure local administrator accounts for 
-   domain workstations while allowing technical support to determine the password 
-   based on an agreed-upon pattern while having only immediate access to the local
-   computer.  To determine the password, an attacker with knowledge of Group 
-   Policy, Active Directory and Scripting would still need to:
+   password of a local administrator account.  (For best practice, this script 
+   should be called from a Group Policy Object that is filtered to only allow 
+   domain computers and OU/Domain admins read access.)  The goal is to set a 
+   password that can be built from a specified set of attributes generally 
+   known or accessible to technicians who support the computer.  The idea is 
+   to adequately secure local administrator accounts for domain workstations 
+   while allowing technical support to determine the password while having 
+   only immediate access to the local computer.  To determine the password, 
+   an attacker with Active Directory account credentials and knowledge of 
+   Group Policy, Active Directory structure and Scripting would still need to:
       1) Be an admin of a domain machine to read/parse the script (as system).
       2) Acquire physical information about a computer by either:
-         a) Making a WMI call as a domain admin.
+         a) Making a remote WMI call as a domain admin.
          b) Having physical access to the computer.
+   Thus, discovery of local admin credentials and the ability to broadly 
+   attack workstations accross the domain is severely restricted while the
+   ability of technicians to work on machines as local admins is relatively
+   unhampered.
 .Parameter UserName
    The LogonName of the user whose password will be set.  If not given or is 
    "password", NO password will be set, but will be output to the console only.
@@ -64,17 +69,15 @@
    the -Pattern parameter.  Special characters or spaces are stripped before 
    counting.  Values are looped for multiple instances of "M".
    Default Value: 4
-.Parameter OUroot
-   Specifies the distinguished name (OU=AllComputers,DN=school,DN=edu) of the 
-   root domain/OU to search for the computer account.  This is only needed
-   for manual testing situations in which the user account is in a different
-   domain than the computer account.  
-   Default Value: The domain of the running account.
 .Parameter OUAttribute
    Specifies the AD attribute of the Organizational Unit of which the computer 
    is a direct member which be used when "O" is included in the -Pattern 
    parameter.  If multiple strings are provided (separated by comma), they
-   will be used in sequence and looped for each instance of "O".
+   will be used in sequence and looped for each instance of "O".  If the 
+   attribute cannot be found or is empty then the default password will be 
+   set.  If the computer is not in a domain (and thus has no OU) or the domain
+   cannot be reached (e.g. off-network or access denied), then the value 
+   processed will be the domain or workgroup of the computer.  
    Default Value: "Description"
 .Parameter OULimit
    Specifies the number of characters from the front of the string returned
@@ -132,12 +135,18 @@
    .\Set-LocalPassword.ps1 fixIT -Pattern oss -OUAttribute Name -SerialStub First,Last
    This will set the local "fixIT" account password for the example
    computer to "psyc62z00zdv1".  Note the double "0" from the serial number.
+.Example
+   .\Set-LocalPassword.ps1 Admin -default 'random'
+   If run offline or with another local administrator account, this will
+   set the local "Admin" account password to a random string of 12 characters.
+   If run with access to a domain as a domain member, the string returned 
+   would be "62z0!mar16"
 .Example 
    .\Set-LocalPassword.ps1 Administrator -Random 25
    This will set the local "Administrator" account password for the Example
    computer to a 25-character, random string.
 .Notes
-   Copyright 2015 Erich Hammer
+   Copyright 2015-2017 Teknowledgist
 
    This script/information is free: you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
@@ -198,11 +207,7 @@ Param(
    [Parameter(ParameterSetName='Rubric')]
    [int[]]$ModelLimit = '4',
 
-   # Distinguished name of the root domain/OU to look for the computer account.
-   [Parameter(ParameterSetName='Rubric')]
-   [string]$OUroot = ([adsi]'').distinguishedName[0],
-   
-   # AD attributes to be used of the OU of the computer
+   # AD attributes to be used of the OU of the computer.
    [Parameter(ParameterSetName='Rubric')]
    [string[]]$OUAttribute = @('Description'),
    
@@ -240,28 +245,46 @@ $PW = ''
    'Rubric' {
 # Preload (one time) all the extracted values to be used and initialize counts
       Switch -regex ($Pattern) {
-         'b' { $BrandName = (Get-WmiObject Win32_ComputerSystem).Manufacturer.trim().tolower() -replace '[^0-9a-z]',''}
+         'b' { $BrandName = (Get-WmiObject Win32_ComputerSystem).Manufacturer.trim().tolower() -replace '\W',''}
          'c' { $Ccount = 0 }
          'd' { $Dcount = 0 }
          'm' { $Mcount = 0
-               $Model = (Get-WmiObject Win32_ComputerSystem).Model.trim().tolower() -replace '[^0-9a-z]','' 
+               $Model = (Get-WmiObject Win32_ComputerSystem).Model.trim().tolower() -replace '\W','' 
          }
          's' { $Scount = 0
-               $SN = (Get-WmiObject Win32_Bios).SerialNumber.tolower() -replace '[^0-9a-z]',''
+               $SN = (Get-WmiObject Win32_Bios).SerialNumber.tolower() -replace '\W',''
          }
          'o' { $OUcount = 0
-            $adsiSearch = [adsisearcher]('(&(objectCategory=computer)(cn=' + $env:COMPUTERNAME + '))')
-            $adsiSearch.SearchRoot = [adsi]"LDAP://$OUroot"
-            $FullPath = $adsiSearch.FindAll()[0].path.remove(0,7)
+               $Domain = (Get-WmiObject -Class win32_computersystem).domain
+               $PossibleMsg = "The computer is not in a domain or the domain cannot be contacted.`n" + 
+                                 "Defaulting to an OU attribute value of:   " + $(Get-WmiObject -Class win32_computersystem).domain
 
-            $OUname = $FullPath.split(',')[1].remove(0,3)
-            $CompPath = $FullPath.remove(0,($FullPath.indexof(',') + 1))
-            $OUPath = $CompPath.remove(0,($CompPath.indexof(',') + 1))
-
-            $adsiSearch.Filter = '(&(objectCategory=OrganizationalUnit)(name=' + $OUname + '))'
-            $adsiSearch.SearchRoot = [adsi]('LDAP://' + $OUpath)
-            $OUObject = $adsiSearch.FindAll()[0]
-         }
+               # Is the computer's "domain" reachable?
+               try {
+                  test-connection $Domain -count 1 -erroraction stop | out-null 
+               } catch {
+                  write-warning $PossibleMsg
+                  $OUObject = $Domain
+                  break
+               }
+               $DomainDN = "DC=" + ($Domain.split('.') -join ",DC=")
+               # In which OU is the computer?
+                  $adsiSearch = [adsisearcher]('(&(objectCategory=computer)(cn=' + $env:COMPUTERNAME + '))')
+                  $adsiSearch.SearchRoot = [adsi]"LDAP://$DomainDN"
+               try {
+                  $FullPath = $adsiSearch.FindAll()[0].path.remove(0,7)
+               } catch {
+                  write-warning $PossibleMsg
+                  $OUObject = $Domain
+                  break
+               }
+               $OUname = $FullPath.split(',')[1].remove(0,3)
+               $OUPath = $FullPath -replace '.*?,.*?,(.*)','$1'
+               # Collect OU object (with attributes)
+               $adsiSearch.Filter = '(&(objectCategory=OrganizationalUnit)(name=' + $OUname + '))'
+               $adsiSearch.SearchRoot = [adsi]('LDAP://' + $OUpath)
+               $OUObject = $adsiSearch.FindAll()[0]
+            }
       } # end of: Switch -regex ($Pattern)
 
       Foreach ($x in $Pattern.ToCharArray()) {
@@ -306,10 +329,14 @@ $PW = ''
                Break
             }
             'O' {
-               $OUstring = $OUObject.properties.item($OUAttribute[$OUcount % $OUAttribute.length])[0] -replace '[^1-9a-zA-Z]',''
-               if (-not $OUstring) {
-                  $PW = $Default
-                  Break top
+               if ($OUObject -ne $Domain) {
+                  $OUstring = $OUObject.properties.item($OUAttribute[$OUcount % $OUAttribute.length])[0] -replace '[^1-9a-zA-Z]',''
+                  if (-not $OUstring) {
+                     $PW = $Default
+                     Break top
+                  }
+               } else {
+                  $OUstring = $Domain
                }
                if ($OUstring.length -gt $OULimit[$OUcount % $OULimit.length]) {
                   $PW = [string]($PW + $OUstring.substring(0,$OULimit[$OUcount % $OULimit.length]))

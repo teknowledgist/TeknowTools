@@ -13,25 +13,26 @@ Unfortunately, it’s a challenge to fit best practice into practical reality.  
 4. Call it as a startup script via GPO (or run it from SCCM).
 
 #### The bad
-- **It is discoverable.**  A user with (legit or not) local admin rights to a domain computer has the ability to impersonate that computer's AD account and read the script.  Reading the script could allow an attacker to determine the password if they know or iterate though all the (limited) options.
-- If a machine has an unusual attribute (e.g. it won't return the "apparent" serial number to WMI queries - VMs are especially tricky) have to be identified and dealt with manually.
+- **It is discoverable.**  A user with (legit or not) local admin rights to a domain computer could impersonate that computer's AD account and read the script.  Reading the script could allow the attacker to determine the password if they know or iterate though all the (limited) options.
+- If a machine has an unusual attribute (e.g. it won't return the "apparent" serial number to WMI queries - VMs are especially tricky), it will have to be identified and dealt with manually.
 
 #### The good
 - The password is re-enforced at each startup.
 - The password can be easily changed -- manually or automatically (via date reference) -- for all systems.
-- An attacker who knows that the rubric includes the serial number would still need to get at least brief physical access to each machine they seek to attack as the WMI service (hence, the serial number) is not remotely accessible (to my knowledge) by default.
+- A rubric that includes the serial number would require an attacker with knowledge of the script and the chosen rubric to get at least brief physical access to each machine they seek to attack as the WMI service (hence, the serial number) is not remotely accessible (to my knowledge) by default.
+- A rubric that includes an attribute of the computer's OU would require an attacker with knowledge of the script and the chosen rubric and access to Active Directory.
 
 #### External security enhancements
 - Disable (or leave disabled) the built-in "Administrator" account and create another.  I like the idea of a local admin username similar to most other domain users so that it doesn't stand out.
-- Use a GPO to disable the local administrators group's default right to remote login.  [Reference here.](https://security.berkeley.edu/node/94?destination=node/94) Thus a user who is a local admin and wants to RDP into their machine would not be able to simply allow remote desktop.  They would have to explicitly add themselves to the list of users.  This should require attackers who can know/guess the password to be physically present at each machine they attack -- at least long enough to add the local admin account to the "Remote Desktop Users" group.  (Of course, if they can do that much, they could easily do all kinds of other bad things.)
-- A GPO to disable debugging for administrators.  [Reference here.](https://www.sans.org/reading-room/whitepapers/testing/passthehash-attacks-tools-and-mitigation-33283)
+- Use a GPO to disable the local administrators group's default right to remote login.  ([Reference here.](https://security.berkeley.edu/node/94?destination=node/94)) Thus a user who is a local admin and wants to RDP into their machine would not be able to simply allow remote desktop.  They would have to explicitly add themselves to the list of users.  This should require attackers who can know/guess the password to be physically present at each machine they attack -- at least long enough to add the local admin account to the "Remote Desktop Users" group.  (Of course, if they can do that much, they could easily do all kinds of other bad things.)
+- A GPO to disable debugging for administrators.  ([Reference here.](https://www.sans.org/reading-room/whitepapers/testing/passthehash-attacks-tools-and-mitigation-33283))
 - If you use Remote Administration, only open the firewall to the machines from which you will be administering.
 - Ditto for the WMI service.
-- If you use Remote Management (WinRM), consider establishing subscriptions to security event logs customized to only logins of the local administrator account in question.  [Reference here.](http://technet.microsoft.com/en-us/library/cc748890.aspx)  (I had a sample, custom, event-log xml filter that I'll re-create and put up here someday.)
+- If you use Remote Management (WinRM), consider establishing subscriptions to security event logs customized to only logins of the local administrator account in question.  ([Reference here.](http://technet.microsoft.com/en-us/library/cc748890.aspx))  (At one point, I had a sample, custom, event-log xml filter that I'll re-create and put up here someday.)
 - Consider [tracking all explicitly added administrator accounts](https://github.com/teknowledgist/TeknowTools/tree/master/TrackLocalAdmins) (i.e. not set by GPO/Domain).  
 
 ##### Comment
-Personally, I've never like the idea of on-site technical support using a domain account to log in -- especially one with rights beyond the local workstation.  You don't know what the normal user has done (intentionally or not) to compromise security and it leaves behind pieces that make it easier for someone to attack that account.  A unique, local admin password that has been discovered is still less dangerous than an admin-of-all-workstations, domain account with a memorable, occasionally-changed password used by rushed technicians.  
+Personally, I've never like the idea of on-site technical support using a domain account to log in -- especially one with rights beyond the local workstation.  You don't know what the normal user has done (intentionally or not) to compromise security and the logging in leaves behind pieces that make it easier for someone to attack that account.  A unique, local admin password that has been discovered is still less dangerous than an admin-of-all-workstations, domain account with a memorable, occasionally-changed password used by rushed technicians.  
 
 That said, having a domain account that is an administrator on all workstations (but has no other rights) is mighty handy on occasion.  Securing that is the reason for [something like this.](https://github.com/teknowledgist/TeknowTools/tree/master/Passwords)
  
