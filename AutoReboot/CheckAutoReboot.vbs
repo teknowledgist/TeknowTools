@@ -48,10 +48,13 @@
 '   even checking for a pending reboot.  This should be a location where changes
 '   require elevated administrator rights.
 '   Default Value: <SystemDrive>\NoReboot -- e.g. "C:\NoReboot"
-'.PARAMETER AppFolder
-'   The local folder in which the script, the current settings and all the log 
-'   files reside.
-'   Default Value: <ProgramData folder>\Institution\Reboot -- e.g. "C:\ProgramData\Institution\Reboot"
+'.PARAMETER OrgName
+'   The short name of the organization.  This is used in several places including
+'   for separating files and tasks from other applications and system processes.  
+'   For example, the script and log files will be in the "\ProgramData\OrgName\Reboot" 
+'   folder, there will be a "\OrgName" task folder, and the HTA window title will
+'   be "OrgName Security Reboot Notice".
+'   Default Value: ITServices
 '.PARAMETER DefaultName
 '   Name to use if the script cannot discover its own name.  Reason:  This script
 '   needs to be able to create a scheduled task which will call the script again.
@@ -87,7 +90,7 @@
 '   The email address for help or questions about the reboot notice.
 '   Default Value:  support@school.edu
 '.NOTES
-'   Copyright 2015 Erich Hammer
+'   Copyright 2015-2017 Erich Hammer
 '
 '   This script/information is free: you can redistribute it and/or
 '   modify it under the terms of the GNU General Public License as
@@ -105,27 +108,24 @@
 'Param(
 '   # Time of day for auto-reboots to occur
 '   [ValidateScript({
-'      If ($_ -match "^([01]\d|2[0-3]):?([0-5]\d)$") { $true }
+'      If ($_ -match '^([01]\d|2[0-3]):?([0-5]\d)$') { $true }
 '      else {Throw "`n'$_' is not a time in HH:mm format."}
 '   })]
 '   [string]$RebootTime = '17:00',
 '
 '   # Day of week for auto-reboots to occur
 '   [ValidateScript({
-'      $Days = ("Su", "Mo", "Tu", "We", "Th", "Fr", "Sa")
+'      $Days = ('Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa')
 '      If ($Days -icontains ($_[0..1] -join '')) { $true } 
 '      else {Throw "`n'$_' is not a day of the week or an abbreviation for one."}
 '   })]
 '   [string]$RebootDOW = 'Friday',
 '
 '   # If present, this machine should not auto-reboot
-'   [string]$BlockFile = ($env:SystemDrive + '\NoReboot'),
+'   [string]$BlockFile = (Join-Path $env:SystemDrive 'NoReboot'),
 '
-'   # Path to locally stored files
-'   [string]$AppFolder = ($env:ProgramData + '\Institution\Reboot\'),
-'
-'   # XML file with status information
-'   [string]$AppSettings = ($AppFolder + 'Shutdown.xml'),
+'   # Short name of the organization used for sub-paths
+'   [string]$OrgName = 'ITServices',
 '
 '   # Use this name if can't discover own name
 '   [string]$DefaultName = 'CheckAutoReboot.vbs',
@@ -244,6 +244,7 @@
 '   [CmdletBinding(DefaultParametersetName='Clear')] 
 '   Param([Parameter(Mandatory=$true, position=0)][string]$SettingsFile,
 '         [Parameter(Mandatory=$true, position=1)][string]$TaskName,
+'         [Parameter(position=2)][string]$TaskFolderName = '\',
 '         [Parameter(ParameterSetName='Clear')][string]$LogTime = (get-date -Format yyyy.MM.dd-HH.mm) ,
 '         [Parameter(ParameterSetName='Restart')][switch]$Restart = $False,
 '         [Parameter(ParameterSetName='PowerOff')][switch]$PowerOff = $False)
@@ -253,18 +254,23 @@
 '   $HTAs = Get-ChildItem ($env:TEMP + '\Reboot*.hta') | Sort-Object LastWriteTime -Descending
 '   $HTAs[1..$HTAs.count] | % { Remove-Item $_.Fullname}
 '   
-'   # Delete any logoff-capture task
-'   $TaskService = new-object -com Schedule.Service
+'   # Delete leftover tasks in case the user rebooted on their own
+'   $TaskService = New-Object -ComObject Schedule.Service
 '   $TaskService.connect()                     # connect to the local computer (default)
-'   if ((@($TaskService.getfolder('\').gettasks(1)) |Select-Object -expandproperty name) -icontains 'No Logoff') {
-'      $TaskService.getfolder('\').DeleteTask('No Logoff',0)
+'   $ErrorActionPreference = 'stop'
+'   Try {
+'      $TaskFolder = $TaskService.GetFolder($TaskFolderName)
+'   } Catch {
+'      # Fall back to the root folder on error
+'      $TaskFolder = $TaskService.GetFolder('\')
+'   } Finally { 
+'      $ErrorActionPreference = 'continue'
+'      if (($TaskFolder.gettasks(1) |Select-Object -expandproperty name) -icontains 'No Logoff') {
+'         $TaskFolder.DeleteTask('No Logoff',0)
+'      }
+'      if (($TaskFolder.gettasks(1) |Select-Object -expandproperty name) -icontains $TaskName) {
+'         $TaskFolder.DeleteTask($TaskName,0)
 '   }
-'   
-'   # Also delete tasks for future times created by previous incarnations of this script
-'   $TaskService = new-object -com Schedule.Service
-'   $TaskService.connect()                     # connect to the local computer (default)
-'   if ((@($TaskService.getfolder('\').gettasks(1)) |Select-Object -expandproperty name) -icontains $TaskName) {
-'      $TaskService.getfolder('\').DeleteTask($TaskName,0)
 '   }
 '
 '#   if ($PowerOff) { Stop-Computer -Force }    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  Commented for testing
@@ -296,7 +302,9 @@
 '      7.5-15 minutes left -> 3.75 minutes snooze
 '      less than 7.5 minutes left -> 1 minute snooze
 '#>
-'   Param($DefaultPeriod,$TotalTimeLeft)
+'   [CmdletBinding()]
+'   Param([int]$DefaultPeriod=4,
+'         [int]$TotalTimeLeft=8)
 '   
 '   $Ratio = $TotalTimeLeft / ($DefaultPeriod * 60)
 '   If ($Ratio -ge 2) {$NextInterval = $DefaultPeriod*60 }
@@ -320,6 +328,10 @@
 'if (Test-Path $BlockFile) {
 '   Return
 '}
+'
+'# Define the xml settings file path
+'$AppSettings = Join-path $env:ProgramData (Join-path $OrgName 'Reboot\Shutdown.xml')
+'
 'if (Test-Path $AppSettings) {
 '   $Settings = [xml](get-content $AppSettings)
 '}
@@ -332,7 +344,7 @@
 '   # If this is a VBS-to-PoSh polyglot script, no name will be returned.
 '   # Set it to a default which can be changed in the VBS with a line like:
 '   #     PoShcmd = PoShcmd & "-replace 'Check-AutoReboot.vbs','" & Wscript.ScriptFullName & "' "
-'   $ScriptPath = $AppFolder + $DefaultName
+'   $ScriptPath = Join-Path $env:ProgramData "$OrgName\Reboot\$DefaultName"
 '}
 '
 '$Now = Get-Date
@@ -346,6 +358,22 @@
 '#if (($Reason = Test-RebootPending) -and   # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  Commented for testing
 '#      ((New-TimeSpan -Start $LastBootTime -End $Now).TotalHours -ge 24)) {  # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  Commented for testing
 'if ($true) {                                  # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  Uncommented for testing
+
+'   # Want to know when the pending reboot was first identified (for more active notifications)
+'   # This will be either the time this instance started, or the timestamp of the 'No Logoff' task.
+'   $TaskService = new-object -ComObject Schedule.Service
+'   $TaskService.connect() 
+'   $ErrorActionPreference = 'stop'
+'   Try {
+'      $TaskFolder = $TaskService.GetFolder($OrgName)
+'      $TaskDef = $TaskFolder.GetTask('No Logoff')
+'      $FlagDate = get-date $TaskDef.Definition.RegistrationInfo.date
+'   } Catch {
+'      $FlagDate = $Now
+'   } Finally { 
+'      $ErrorActionPreference = 'continue'
+'   }
+'
 '   if ($Settings) {
 '      # If a user manually restarted, the settings file from previous pending reboot will
 '      #   remain.  To stop a possible auto-reboot with insufficient warning, the last boot
@@ -356,7 +384,7 @@
 '
 '      If ($LastBootTime -gt $FirstAckTime) {
 '         # Machine restarted NOT via the script, so reset the settings.
-'         Reset-AutoReboot $AppSettings $TaskName -LogTime $LastBootTime.ToString('yyyy.MM.dd-HH.mm')
+'         Reset-AutoReboot $AppSettings $TaskName $OrgName -LogTime $LastBootTime.ToString('yyyy.MM.dd-HH.mm')
 '         $Settings = $null
 '      }
 '   }
@@ -372,17 +400,17 @@
 '      } ElseIf ($Remaining -le 0) {
 '         # reboot immediately if the user has acknowledged and time is up
 '         If ($Settings.Root.Shutdown -eq 'Checked') {
-'            Reset-AutoReboot $AppSettings $TaskName -PowerOff
+'            Reset-AutoReboot $AppSettings $TaskName $OrgName -PowerOff
 '            Return
 '         } else {
-'            Reset-AutoReboot $AppSettings $TaskName -Restart
+'            Reset-AutoReboot $AppSettings $TaskName $OrgName -Restart
 '            Return
 '         }
 '      }
 '   } else {  # No settings and/or no reboot point
 '      If ($Settings) {
 '         # No set reboot point = something went wrong -- don't reboot.
-'         Reset-AutoReboot $AppSettings $TaskName
+'         Reset-AutoReboot $AppSettings $TaskName $OrgName 
 '         $Settings = $null
 '      }
 '      # Otherwise, just no settings file = User has not acknowledged pending reboot.
@@ -395,11 +423,21 @@
 '         $Remaining = (New-TimeSpan -Start $Now -End $RebootPoint).TotalMinutes
 '      }
 '      # When a reboot is pending, we want to stop users from logging off by redirecting them to a reboot.
-'      $TaskService = new-object -com('Schedule.Service')
-'      $TaskService.connect()                     # connect to the local computer (default)
-'      if ((@($TaskService.getfolder('\').gettasks(1)) |Select-Object -expandproperty name) -notcontains 'No Logoff') {
+'      $ErrorActionPreference = 'stop'
+'      Try {
+'         $TaskFolder = $TaskService.GetFolder($OrgName)
+'      } Catch {
+'         $null = $TaskService.GetFolder('\').CreateFolder($OrgName) 
+'         $TaskFolder = $TaskService.GetFolder($OrgName)
+'      } Finally { 
+'         $ErrorActionPreference = 'continue'
+'      }
+'
+'      if (($TaskFolder.gettasks(1) |Select-Object -expandproperty name) -notcontains 'No Logoff') {
+'         $FlagDate = $Now
 '         $TaskDef = $TaskService.NewTask(0)  # Not sure what the "0" is for
 '         $Taskdef.RegistrationInfo.Description = 'Force restart on Logoff'
+'         $TaskDef.RegistrationInfo.Date = $Now.ToString('yyyy-MM-ddTHH:mm:ss.00000')
 '         $TaskDef.settings.priority = 2
 '         $TaskDef.settings.StartWhenAvailable = $true
 '         $Trigger = $Taskdef.Triggers.Create(0) 
@@ -413,7 +451,7 @@
 '         $Action.Path = 'shutdown.exe'
 '         $Action.Arguments = '/r /f'
 '         # Finally, register the task
-'         $TaskService.getfolder('\').RegisterTaskDefinition('No Logoff', $Taskdef, 6, $null, $null, 3) > $null
+'         $TaskFolder.RegisterTaskDefinition('No Logoff', $Taskdef, 6, $null, $null, 3) > $null
 '      }
 '   } #End Else {  # No settings file and/or reboot point...
 '   
@@ -429,7 +467,7 @@
 '         $ShowMore = 'none'
 '      }
 '
-'      # The following here-string becomes a unique HTA that will be saved in a temporary
+'      # The following here-string is exported to a unique HTA that will be saved in a temporary
 '      #   location for one-time use.  The HTA provides a GUI, and creates/updates the 
 '      #   XML settings file with information on the choices the user makes.  There are 
 '      #   several insertions into the here-string which customize the HTA for the instance
@@ -440,13 +478,14 @@
 '      #     The folder/path to read/save the XML settings file.
 '      #     Whether the user has previously selected to auto-shutdown vs reboot.
 '      #     The reason(s) why is a reboot is pending (from the Test-RebootPending function).
+'      #     The DateTime the script (NOT the user) recognized the pending reboot status.
 '      #     The word ($Verb) used in the primary phrase "Reboot Required/Scheduled".
 '      #     A CSS keyword ($ShowMore) to control the visibility of some parts of the HTA.
 '      #     The date/time the warning will return even if the user asks to no be bothered.
 '      $HTACode = @"
 '   <html xmlns:IE>
 '   <!-- http://www.itsupportguides.com/windows-7/windows-7-shutdown-message-with-countdown-and-cancel/ -->
-'   <title>Security Updates Policy Reboot Notice</title>
+'   <title>$OrgName Security Reboot Notice</title>
 '   <script type="text/javascript">
 '     // Quickly move the window to the approximate location
 '     window.resizeTo(500,700)
@@ -608,6 +647,10 @@
 '
 '       Set objReason = xmlDoc.createElement("RebootReason")
 '       objReason.text = "$($Reason -join ',')"
+'       objRoot.appendChild objReason
+'
+'       Set objReason = xmlDoc.createElement("TriggerPoint")
+'       objReason.text = "$($FlagDate.ToString())"
 '       objRoot.appendChild objReason
 '
 '       Set objRecord = xmlDoc.createElement("Acknowledgements")
@@ -774,8 +817,134 @@
 '      # Create the file.
 '      $HTACode > $HTApath
 '      # Start the file.
+'
+'      # Before opening the HTA, create a script block that will run in parallel to the 
+'      #    HTA notice window and display balloon notices (and eventually minimize all 
+'      #    other windows to focus on the notice).
+'      $BalloonNoticeScriptBlock = {
+'         function Show-BalloonTip {
+'            [CmdletBinding(SupportsShouldProcess = $true)]
+'            param (
+'               [Parameter(Mandatory=$true)][string]$Text,
+'               [Parameter(Mandatory=$true)][string]$Title,
+'               [ValidateSet('None', 'Info', 'Warning', 'Error')][string]$BalloonIcon = 'Info',
+'               [string]$NoticeIcon = (Get-Process -id $pid | Select-Object -ExpandProperty Path),
+'               [int]$Timeout = 10000
+'            )
+'
+'            Add-Type -AssemblyName System.Windows.Forms
+'
+'            # This will allow for referencing any icon that can be seen inside a binary file.
+'            #    https://social.technet.microsoft.com/Forums/exchange/en-US/16444c7a-ad61-44a7-8c6f-b8d619381a27/using-icons-in-powershell-scripts?forum=winserverpowershell
+'            $code = @'
+'               using System;
+'               using System.Drawing;
+'               using System.Runtime.InteropServices;
+'
+'               namespace System {
+'                  public class IconExtractor {
+'                     public static Icon Extract(string file, int number, bool largeIcon) {
+'                     IntPtr large;
+'                     IntPtr small;
+'                     ExtractIconEx(file, number, out large, out small, 1);
+'                     try { return Icon.FromHandle(largeIcon ? large : small); }
+'                     catch { return null; }
+'                     }
+'                     [DllImport("Shell32.dll", EntryPoint = "ExtractIconExW", CharSet = CharSet.Unicode, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+'                     private static extern int ExtractIconEx(string sFile, int iIndex, out IntPtr piLargeVersion, out IntPtr piSmallVersion, int amountIcons);
+'                  }
+'               }
+''@
+'            Add-Type -TypeDefinition $code -ReferencedAssemblies System.Drawing
+'
+'            if ($script:balloon -eq $null) {
+'               $script:balloon = New-Object System.Windows.Forms.NotifyIcon
+'            }
+'
+'            $balloon.Icon            = [System.IconExtractor]::Extract('shell32.dll', 77, $true)  # 77 is the Warning triangle.  See note above
+'            $balloon.BalloonTipIcon  = $BalloonIcon
+'            $balloon.BalloonTipText  = $Text
+'            $balloon.BalloonTipTitle = $Title
+'            $balloon.Visible         = $true
+'
+'            $balloon.ShowBalloonTip($Timeout)
+'
+'            $null = Register-ObjectEvent -InputObject $balloon -EventName BalloonTipClicked -Action {
+'                           $balloon.Dispose()
+'                           Unregister-Event $EventSubscriber.SourceIdentifier
+'                           Remove-Job $EventSubscriber.Action
+'                        }
+'         } # END function Show-BalloonTip
+'
+'         # This allows for checking if the front most window is the HTA
+'         Add-Type  @'
+'         using System;
+'         using System.Runtime.InteropServices;
+'         using System.Text;
+'         public class UserWindows {
+'            [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+'               public static extern int GetWindowText(IntPtr hwnd,StringBuilder lpString, int cch);
+'            [DllImport("user32.dll", SetLastError=true, CharSet=CharSet.Auto)]
+'               public static extern IntPtr GetForegroundWindow();
+'            [DllImport("user32.dll", SetLastError=true, CharSet=CharSet.Auto)]
+'               public static extern Int32 GetWindowTextLength(IntPtr hWnd);
+'         }
+''@
+'
+'         # Only display notice ballons if the Notification Window is NOT put in front
+'         $ForgroundWindow = [UserWindows]::GetForegroundWindow()
+'         $FGWTitleLength = [UserWindows]::GetWindowTextLength($ForgroundWindow)
+'         $StringBuilder = New-Object text.stringbuilder -ArgumentList ($FGWTitleLength + 1)
+'         $null = [UserWindows]::GetWindowText($ForgroundWindow,$StringBuilder,$StringBuilder.Capacity)
+'         while ($StringBuilder.ToString() -notmatch $HTARegEx) {
+'            Show-BalloonTip -Text $BalloonText -Title $BalloonTitle -BalloonIcon Warning
+'            Start-Sleep -Seconds $NapTime
+'            $ForgroundWindow = [UserWindows]::GetForegroundWindow()
+'            $FGWTitleLength = [UserWindows]::GetWindowTextLength($ForgroundWindow)
+'            $StringBuilder = New-Object text.stringbuilder -ArgumentList ($FGWTitleLength + 1)
+'            $null = [UserWindows]::GetWindowText($ForgroundWindow,$StringBuilder,$StringBuilder.Capacity)
+'         }
+'
+'         $script:balloon.Dispose()
+'         Remove-Variable -Scope script -Name balloon
+'      } # END $BalloonNoticeScriptBlock
+'
+'      # Balloon notice titles display only the first 62 characters.
+'      If ($Settings) {
+'         $bTitle = 'This computer will reboot in approximately ' + [math]::Round($Remaining/60) + ' hours!'
+'      } else {
+'         $bTitle = "This computer needs to reboot by $OrgName policy."
+'      }
+'      # Balloon notice text displays only the first 256 characters.
+'      $bText = 'Software patches that require a reboot were recently initiated.  Until this computer ' +
+'               'reboots, it will be vulnerable to malicious attacks or instability.  Please save your ' +
+'               'work and reboot to ensure the security of this system and the entire network.'
+'      # Display a balloon notice 10 times/default cycle time
+'      $PauseTime = $Period*60*60/10  # number of seconds between balloons
+'
+'      $runspace = [runspacefactory]::CreateRunspace()
+'      $runspace.open()
+'      $ps = [powershell]::create()
+'      $ps.runspace = $runspace
+'      $runspace.sessionstateproxy.setvariable('BalloonText',$bText)
+'      $runspace.sessionstateproxy.setvariable('BalloonTitle',$bTitle)
+'      $runspace.sessionstateproxy.setvariable('HTARegEx',"$OrgName.*Reboot Notice")
+'      $runspace.sessionstateproxy.setvariable('NapTime',$PauseTime)
+'      $ps.AddScript($BalloonNoticeScriptBlock)
+'      $ps.BeginInvoke()
+'
+'      # If the user has not acknowledged for nearly the entire minimum lead time or 
+'      #    remaining time is running out, force user attention to the notice window.
+'      if (((New-TimeSpan -Start $FlagDate -End (Get-Date)).TotalHours -ge ($MinLead - $Period/2)) -or
+'            ($Remaining -le $Period*60)) {
+'         (New-Object -ComObject Shell.Application).minimizeall()
+'      }
+'
+'      # Now open the HTA
 '      Start-Process $HTApath -Wait
 '      
+'      $runspace.Close()
+'      $ps.Dispose()
 '
 '      # Allow other users to manipulate the acknowledgement file in case of an unclean-reboot
 '      if (Test-Path $AppSettings) {
@@ -802,17 +971,17 @@
 '      }
 '      $NewNode = $Settings.CreateElement('RebootPoint')
 '      $NewNode.InnerText = $RebootPoint
-'      [void]$Settings.Root.AppendChild($NewNode)
+'      $null = $Settings.Root.AppendChild($NewNode)
 '      $Settings.Save($AppSettings)
 '   }
 '
 '   # When the command comes down from the GUI, restart/poweroff
 '   If ($Settings.Root.ActNow) {
 '      If ($Settings.Root.Shutdown -eq 'Checked') {
-'         Reset-AutoReboot $AppSettings $TaskName -PowerOff
+'         Reset-AutoReboot $AppSettings $TaskName $OrgName -PowerOff
 '         Return
 '      } else {
-'         Reset-AutoReboot $AppSettings $TaskName -Restart
+'         Reset-AutoReboot $AppSettings $TaskName $OrgName -Restart
 '         Return
 '      }
 '   }
@@ -823,7 +992,7 @@
 '      # to not be bothered.  Also to a user who just now acknowledged the
 '      # notice (rather than acknowledged previously but missed this notice).
 '      if (($Settings.Root.quiet -eq 'True') -or 
-'            ((New-TimeSpan -Start $LastStamp -End $Now).minutes -lt 1)) {
+'            ((New-TimeSpan -Start $LastStamp -End $Now).TotalMinutes -lt 1)) {
 '         $NextInterval = Set-NextInterval $Period $Remaining
 '      } else {
 '         $NextInterval = 1
@@ -836,16 +1005,26 @@
 '} else { #End If(Is-RebootPending)   
 '   # Clean up any crud that may be left behind
 '   If ($Settings) {
-'      Reset-AutoReboot $AppSettings $TaskName -LogTime $LastBootTime.ToString('yyyy.MM.dd-HH.mm')
+'      Reset-AutoReboot $AppSettings $TaskName $OrgName -LogTime $LastBootTime.ToString('yyyy.MM.dd-HH.mm')
 '   }
 '   $NextInterval = $Period*60
 '} #End Else
 '   
 '# Create or update a task to re-run this script at a later time.
-'$TaskService = new-object -com Schedule.Service
+'$TaskService = new-object -ComObject Schedule.Service
 '$TaskService.connect()                     # connect to the local computer (default)
-'if ((@($TaskService.getfolder('\').gettasks(1)) |Select-Object -expandproperty name) -icontains $TaskName) {
-'   $TaskDef = $TaskService.GetFolder('\').GetTask($TaskName).definition
+'$ErrorActionPreference = 'stop'
+'Try {
+'   $TaskFolder = $TaskService.GetFolder($OrgName)
+'   
+'} Catch {
+'   $null = $TaskService.GetFolder('\').CreateFolder($OrgName) 
+'   $TaskFolder = $TaskService.GetFolder($OrgName)
+'} Finally { 
+'   $ErrorActionPreference = 'continue'
+'}
+'if (($TaskFolder.gettasks(1) |Select-Object -expandproperty name) -icontains $TaskName) {
+'   $TaskDef = $TaskFolder.GetTask($TaskName).definition
 '   # Adjust the scheduled task to re-run the script at a later time.
 '   $TaskDef.Triggers | % {
 '      $_.StartBoundary = get-date (get-date).AddMinutes($NextInterval) -f 'yyyy\-MM\-dd\THH:mm:ss'
@@ -854,6 +1033,7 @@
 '} else {
 '   $TaskDef = $TaskService.NewTask(0)  # Not sure what the "0" is for
 '   $Taskdef.RegistrationInfo.Description = 'Periodic check for pending reboot and GUI notice.'
+'   $TaskDef.RegistrationInfo.Date = $FlagDate.tostring('yyyy\-MM\-dd\THH:mm:ss.00000')
 '   $TaskDef.settings.priority = 2
 '   $TaskDef.Settings.MultipleInstances = 3
 '   $TaskDef.settings.StartWhenAvailable = $true
@@ -876,12 +1056,15 @@
 '}
 '
 '# Finally, register the task
-'$TaskService.getfolder('\').RegisterTaskDefinition($TaskName, $Taskdef, 6, $null, $null, 3) > $null
+'$TaskFolder.RegisterTaskDefinition($TaskName, $Taskdef, 6, $null, $null, 3) > $null
 '
 'Return   
 '
 '
 '# End PowerShell  (Don't modify this line!)
+
+' Uncomment for testing delay to bring other windows forward
+'WScript.Sleep(3000)
 
 ' Minimize impact on "No Reboot" machines.
 Set fso = CreateObject("Scripting.FileSystemObject")

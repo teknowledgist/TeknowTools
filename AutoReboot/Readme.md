@@ -3,14 +3,15 @@ Auto-reboot Process
 
 This page is intended to explain the Auto-reboot process I created for the college in which I work and to provide some troubleshooting starting points and technical information.
 
+#### Philosophy
+Users don't want to totally avoid necessary reboots and remain vulnerable; They just need time to accept the eventuality and want to do it somewhat on their schedule.  With firm, clear reminders of the need, they will comply and feel better about their IT services than they would with an authoritarian mandate. 
+
 #### Why
 My workplace uses SCCM to push updates, but when I wanted to configure the SCCM client to auto-reboot based on need, I discovered that the notification time-window has a hard-coded maximum of 24 hours.  Also, once the pending reboot is recognized, it is somewhat non-trivial (and definitely non-immediate -- as is *everything* with SCCM) to stop it in case of an emergency.  
 
 Many users in my workplace are "forgetful professor" types.  They are so focused on the cutting-edge or educational problems/research they are paid to do, they don't consider details like computer (or even solar) schedules.  They have desktop computers that are always on with multiple, partially finished email/documents open.  Their schedules may have them in the office only some days and/or they have a somewhat unexpected need to run multi-day computations.  Forcing a reboot with such a "small" window of notice would simply not be acceptable.  Setting up different SCCM client settings schedules and keeping track of (and modifying!) who should be in which and/or disseminating information on when it is "safe" to start computations would be a nightmare too.  And forget teaching them anything.  :wink:
 
 The process I have created and outlined here is very forgiving and not dependent (once deployed) on GPO (i.e. off campus  laptop computers still go through the process).  A local administrator (i.e. without IT approval) can configure a machine to never reboot, and the process can be delayed/halted within seconds by any logged in user in case of emergencies.  
-
-Essentially, I believe users don't want to totally avoid necessary reboots and remain vulnerable; They just need time to accept the eventuality and want to do it somewhat on their schedule, and they need firm, clear reminders of the need.
 
 
 #### Summary of the process
@@ -30,14 +31,18 @@ Essentially, I believe users don't want to totally avoid necessary reboots and r
 ###### Further Windows
 ![screenshot](https://cdn.rawgit.com/teknowledgist/TeknowTools/master/AutoReboot/FurtherWindows.png)
 
+###### Balloon Notice
+![screenshot](https://cdn.rawgit.com/teknowledgist/TeknowTools/master/AutoReboot/BalloonNotice.png)
+
 #### Notes
 0. This does require PowerShell v2+, but otherwise, the code works (in my experience) on Windows XP through Windows 10.
 1. As provided here, this script is "neutered" for testing/viewing purposes.  It will always think the machine has a pending reboot and will not reboot the machine if requested (or time runs out).   
     - The pending reboot check can be re-enabled by swapping the comment/uncomment marks around line 347-349.
     - Reboot/shutdown can be re-enabled by swapping the comment marks around lines 271-273.
 2. Users will always have between 54 hours and 9 days of warning after they acknowledge the need for a reboot before an automatic reboot will occur.  Thus, an initial acknowledgement on a Thursday morning will set the deadline to the Friday, 8 days hence.
-3. If the window falls behind other windows (because a user is trying to ignore it or otherwise), it will close and reopen itself (to the front) every 4 hours.
-4. The script and log files default to "*C:\\ProgramData\\Institution\Reboot\\*". 
+3. If the window is not in front, a balloon notice will appear every 24 minutes.
+4. If the initial notice is not acknowledged for approximately 52 hours, all windows will be minimized to force the notice window (which cannot be minimized) into focus.  Window minimization will also occur when less than 4 hours remain before auto-reboot.
+5. The script and log files default to "*C:\\ProgramData\\Institution\Reboot\\*". 
     - The script (*CheckAutoReboot.vbs*) can only be modified by admins and will be updated/recreated at next login by Group Policy if the *Initialize-AutoReboot.ps1* script is a startup script.
     - The active, log file (*Shutdown.xml*) can be modified by any user of the machine.
 
@@ -52,7 +57,7 @@ Essentially, I believe users don't want to totally avoid necessary reboots and r
 - The script can be manually run at any time by double-clicking it.  Any choices made when run manually will update the scheduled tasks to run again as if the script had been called by the task itself.
 - The XML, log file can be modified at any time (as long as the xml syntax and case is preserved).
 - The XML, log file may remain even after a reboot if the reboot was not initiated by the script.  The first time the script runs (an hour after login), it will rename the file to "*reboot*&lt;timestamp&gt;*.log*".  In this case, the &lt;timestamp&gt; will reflect when the machine last booted.
-- The scheduled tasks that calls the script (one triggered by login, and one with a time trigger) are named:
+- The scheduled tasks that calls the script (one triggered by login, and one with a time trigger) are inside an &lt;OrgName&gt; folder of the Task Scheduler and named:
     - Initialize auto-reboot checks
     - Check for Pending Reboot - &lt;username&gt;
     
@@ -65,7 +70,8 @@ Technical Info
 #### Logs
 
 - The log file is in xml format.  It tracks information in nodes:
-    - &lt;RebootReason&gt; = Which of the 4 possible pending reboot triggers were found
+    - &lt;RebootReason&gt; = Which of the 4 possible pending reboot triggers were found.
+    - &lt;TriggerPoint&gt; = The datetime the script recognized the pending reboot.
     - &lt;Acknowledgements&gt; = A collection of &lt;Stamp&gt; subnodes, each of which is a time-stamp for when the user clicked a button in a notice window.
         - The earliest acknowledgement &lt;Stamp&gt; has a "Mark = 0" attribute.
     - &lt;Shutdown&gt; = Whether a user ticked the "Shutdown instead of reboot" checkbox.
@@ -81,8 +87,8 @@ This is a one-file, [polyglot](https://en.wikipedia.org/wiki/Polyglot_%28computi
 - I wanted to keep the most-secure, default [PowerShell execution policy](http://windowsitpro.com/powershell/use-execution-policies-control-what-powershell-scripts-can-be-run) at the "Restricted" level.  This level means PowerShell scripts will not run unless initiated by Group Policy or SCCM or are explicitly asked to run from within a PowerShell console or a command window with a specific switch argument.
 - There is apparently no way to call a PowerShell script from a scheduled task (using the cmd switch) and have the PoSh window be hidden.  There is a bug/feature that prevents the usually-working "-windowstyle hidden" switch from working when used in the task scheduler.  A big, black console window every 4 hours (even if there is no pending reboot) would not be appreciated by users.
 - While most (probably all) of the PowerShell functionality could be accomplished by VBScript alone, I found a [ready-made PowerShell function](http://blogs.technet.com/b/heyscriptingguy/archive/2013/06/11/determine-pending-reboot-status-powershell-style-part-2.aspx) that determined if a reboot was pending and the project grew from there.  Also, VBScript is very wordy, difficult to read and generally sucks!  :-)
-- Graphical interfaces are possible in PowerShell, but they are long and bulky.  I happened upon an [HTA with a countdown timer](http://www.itsupportguides.com/windows-7/windows-7-shutdown-message-with-countdown-and-cancel/) for rebooting a machine, and modified it to meet our needs.  Adjusting a GUI in HTML and a little VBscript and Javascript is much easier that custom building a PowerShell GUI.
-- It could have been configured to run from multiple script files, but I didn't want to keep track of a mess of files (and the obfuscation of polyglot code many non-IT tinkerers less likely to fiddle).  Also, passing variables from one script to another is a challenge that is easily overcome with nested scripts (by modifying them on the fly).  
+- Graphical interfaces are possible in PowerShell, but they are long and bulky.  I happened upon an [HTA with a countdown timer](http://www.itsupportguides.com/windows-7/windows-7-shutdown-message-with-countdown-and-cancel/) for rebooting a machine and modified it to meet our needs.  Adjusting a GUI in HTML and a little VBscript and Javascript is much easier that custom building a PowerShell GUI.
+- It could have been configured to run from multiple script files, but I didn't want to keep track of a mess of files (and the obfuscation of polyglot code makes non-IT tinkerers less likely to fiddle).  Also, passing variables from one script to another is a challenge that is easily overcome with nested scripts (by modifying them on the fly).  
 
  A bit more detail on how the script works:
 
@@ -105,8 +111,10 @@ This is a one-file, [polyglot](https://en.wikipedia.org/wiki/Polyglot_%28computi
     1. A check for an active, "shutdown.xml" log file and ensure it was created **after** the last boot.
     2. Establish a task service that triggers on logoff events to cause the system to reboot instead.
     3. Determine if the user has asked to not be bothered or if time is running out.
-    4. Export a long here-string with calculated internal variables into a one-time-use, custom, HTA file in a temp directory, start it and wait.
-    5. When the HTA is done:
+    4. Export a long here-string with calculated internal variables into a one-time-use, custom, HTA file in a temp directory
+    5. Start an asycnronous process to cycle watching for the notice window to be in front and open balloon notices.
+    6. Start the HTA and wait.
+    7. When the HTA is done:
         1. Adjust the ACL on the "Shutdown.xml" file (if exists) in case another user needs to modify it.
         2. Calculate when the deadline for rebooting is (this or next Friday?).
         3. Check (and execute) if "Reboot Now" was selected (&lt;ActNow&gt; node)
