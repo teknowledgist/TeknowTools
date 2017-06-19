@@ -252,7 +252,7 @@
 '   # Keep the settings files and the last .HTA for troubleshooting reference
 '   if (Test-Path $SettingsFile) { Rename-Item $SettingsFile ('reboot' + $LogTime + '.log')}
 '   $HTAs = Get-ChildItem ($env:TEMP + '\Reboot*.hta') | Sort-Object LastWriteTime -Descending
-'   $HTAs[1..$HTAs.count] | % { Remove-Item $_.Fullname}
+'   $HTAs[1..$HTAs.count] | ForEach-Object { Remove-Item $_.Fullname}
 '   
 '   # Delete leftover tasks in case the user rebooted on their own
 '   $TaskService = New-Object -ComObject Schedule.Service
@@ -414,7 +414,7 @@
 '         $Settings = $null
 '      }
 '      # Otherwise, just no settings file = User has not acknowledged pending reboot.
-'      $RebootPoint = 0..6 | % {$(Get-Date $RebootTime).AddDays($_)} | 
+'      $RebootPoint = 0..6 | ForEach-Object {$(Get-Date $RebootTime).AddDays($_)} | 
 '                           Where-Object {-not (Compare-Object $_.DayOfWeek.tostring().tolower()[0..1] $RebootDOW.tolower()[0..1])}
 '      $Remaining = (New-TimeSpan -Start $Now -End $RebootPoint).TotalMinutes
 '      # delay the reboot for a week if the time is already too late      
@@ -1026,10 +1026,10 @@
 'if (($TaskFolder.gettasks(1) |Select-Object -expandproperty name) -icontains $TaskName) {
 '   $TaskDef = $TaskFolder.GetTask($TaskName).definition
 '   # Adjust the scheduled task to re-run the script at a later time.
-'   $TaskDef.Triggers | % {
+'   $TaskDef.Triggers | ForEach-Object {
 '      $_.StartBoundary = get-date (get-date).AddMinutes($NextInterval) -f 'yyyy\-MM\-dd\THH:mm:ss'
 '   }
-'   $TaskDef.Actions | % {$_.path = $ScriptPath}
+'   $TaskDef.Actions | ForEach-Object {$_.path = $ScriptPath}
 '} else {
 '   $TaskDef = $TaskService.NewTask(0)  # Not sure what the "0" is for
 '   $Taskdef.RegistrationInfo.Description = 'Periodic check for pending reboot and GUI notice.'

@@ -4,7 +4,7 @@ Auto-reboot Process
 This page is intended to explain the Auto-reboot process I created for the college in which I work and to provide some troubleshooting starting points and technical information.
 
 #### Philosophy
-Users don't want to totally avoid necessary reboots and remain vulnerable; They just need time to accept the eventuality and want to do it somewhat on their schedule.  With firm, clear reminders of the need, they will comply and feel better about their IT services than they would with an authoritarian mandate. 
+Users don't want to totally avoid necessary reboots and remain vulnerable; They just need time to accept the eventuality and want to do it somewhat on their schedule.  With firm, clear reminders of the need, they will come around to do it themselves.  As a bonus, they are more likely to support IT Services in the future due to this more friendly, client relationship than they would with the consumer relationship that a inflexible mandate establishes.
 
 #### Why
 My workplace uses SCCM to push updates, but when I wanted to configure the SCCM client to auto-reboot based on need, I discovered that the notification time-window has a hard-coded maximum of 24 hours.  Also, once the pending reboot is recognized, it is somewhat non-trivial (and definitely non-immediate -- as is *everything* with SCCM) to stop it in case of an emergency.  
@@ -51,7 +51,7 @@ The process I have created and outlined here is very forgiving and not dependent
 - A scheduled reboot (i.e. the user has acknowledged) can be reset before the next iteration to a pending reboot (potentially extending the reboot by a week) by deleting the "*C:\\ProgramData\\Institution\Reboot\\Shutdown.xml*" file.  This is the best, **occasional solution** for someone who needs to delay the reboot.
 - The entire process can be permanently stopped at the next iteration by an administrator of the system placing a "NoReboot" file at the root of the C: drive. 
     - The file can be empty, and should not have an extension. 
-    - The very first thing the script does is check for the file and abort if found.  No further scheduled tasks are set.  The impact on such a system doing number-crunching and/or data-collection should be negligible and will only occur once again per log-in session.
+    - The very first thing the script does is check for the file and abort if found.  No further scheduled tasks are set.  The impact on such a system doing number-crunching and/or data-collection should be negligible and will only occur once per log-in session.
     - This "NoReboot" block should only be used for systems for which 54 hours is not enough lead time without causing a loss of data – i.e. very few.  Try to limit who knows this information to responsible and technically savvy users who understand the implications of not rebooting.  Users who are simply annoyed by having to reboot don't count!
 - The notice window can be closed without an acknowledgement by killing the "mshta.exe" process.  The underlying PowerShell script should continue as if the notice had closed after a time-out.  I.E. the scheduled task will run the script again after a one-minute delay. 
 - The script can be manually run at any time by double-clicking it.  Any choices made when run manually will update the scheduled tasks to run again as if the script had been called by the task itself.

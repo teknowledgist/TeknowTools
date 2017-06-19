@@ -12,27 +12,40 @@
 #
 # The GNU General Public License can be found at <http://www.gnu.org/licenses/>.
 
-$ScriptDir  = "$env:ProgramData\Institution\Reboot\"
+$Sharepath  = '\\server\DeployPoint`$\AutoReboot'
+$LocalDir   = Join-Path $env:ProgramData 'Institution\Reboot\'
 $ScriptName = 'CheckAutoReboot.vbs'
-$Author     = 'Domain\Administrator'
 
-if (!(Test-Path -path $ScriptDir)) {New-Item $ScriptDir -Type Directory | Out-Null}
-Copy-Item "\\server\DeployPoint`$\AutoReboot\CheckAutoReboot.vbs" -Destination $ScriptDir
+if (!(Test-Path -path $LocalDir)) {New-Item $LocalDir -Type Directory | Out-Null}
+Copy-Item (Join-Path $Sharepath $ScriptName) -Destination $LocalDir
 
-$TaskName = 'Initialize auto-reboot checks'
-$TaskService = New-Object -ComObject('Schedule.Service')
-$TaskService.connect()                     # connect to the local computer (default)
+$TaskAuthor     = 'Domain\Administrator'
+$TaskFolderName = 'ITServices'
+$TaskName       = 'Initialize auto-reboot checks'
+$TaskService    = New-Object -ComObject('Schedule.Service')
+$TaskService.connect()
 
-if ((@($TaskService.getfolder('\').gettasks(1)) |select -expandproperty name) -icontains $TaskName) {
-   $TaskService.getfolder('\').DeleteTask($TaskName,0)
+$rootFolder = $TaskService.GetFolder('\')
+
+$ErrorActionPreference = 'stop'
+Try {$TargetFolder = $TaskService.GetFolder($TaskFolderName)}
+Catch { 
+   $null = $rootFolder.CreateFolder($TaskFolderName) 
+   $TargetFolder = $rootFolder.GetFolder($TaskFolderName)
+}
+Finally { $ErrorActionPreference = 'continue' }
+
+# Delete possibly outdated tasks
+if (($TargetFolder.gettasks(1) |select -expandproperty name) -icontains $TaskName) {
+   $TargetFolder.DeleteTask($TaskName,0)
 }
 
 $task_xml = @"
 <?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.3" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
-    <Date>2015-05-19T15:56:23.89838</Date>
-    <Author>$Author</Author>
+    <Date>$(get-date -Format yyyy-MM-ddTHH:mm:ss.00000)</Date>
+    <Author>$TaskAuthor</Author>
     <Description>Runs a script once to start the process of periodic testing for the need to reboot</Description>
   </RegistrationInfo>
   <Triggers>
@@ -71,7 +84,7 @@ $task_xml = @"
   </Settings>
   <Actions Context="Author">
     <Exec>
-      <Command>$ScriptDir$ScriptName</Command>
+      <Command>$(Join-Path $Sharepath $ScriptName)</Command>
     </Exec>
   </Actions>
 </Task>
