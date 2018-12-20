@@ -157,7 +157,6 @@ An [HTA](https://en.wikipedia.org/wiki/HTML_Application) is essentially an HTML 
 
 #### Issues
 This is not a perfect system.  
-- It doesn't control the system like SCCM or other tools, so a knowledgeable  local administrator can bypass it. (Of course, an admin can always do what they want, but that's a different problem.)  I don't feel that most users are militantly against rebooting, they just need firm reminders and time to accept the inevitability.  
-- Occasionally and for reasons I haven't figured out, the script does not re-enable NICs when they have been disabled.  Re-enabling a NIC is not hard, but it does require elevated permissions and can't be done remotely.  :smile:  
+- It doesn't control the system like SCCM or other tools, so a knowledgeable  local administrator can bypass it. (Of course, an admin can always do what they want, but that's a different problem.)  I don't feel that most users are militantly against rebooting, they just need firm reminders and time to accept the inevitability.   
 - It is home-grown, so configurations/possibilities I don't know about or didn't think of could cause an issue.  The developer is readily available though.  :grin:
 

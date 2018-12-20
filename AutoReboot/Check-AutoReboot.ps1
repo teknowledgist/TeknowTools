@@ -107,7 +107,7 @@
    require elevated administrator rights.
    Default Value: <SystemDrive>\NoReboot -- e.g. "C:\NoReboot"
 .NOTES
-   Script version: 3.7
+   Script version: 3.8
 
    Copyright 2015-2018 Erich Hammer
 
@@ -418,13 +418,13 @@ Function Enable-NICs {
    # The correct way to work with NICs in Win8+ is to use the NetAdapter module
    if (Get-Command -noun netadapter) {
       foreach ($GUID in $GUIDList) {
-         $NIC = Get-NetAdapter -Physical | Where-Object {($_.Virtual -eq $false) -and ($_.InterfaceIndex -eq $GUID)}
+         $NIC = Get-NetAdapter -Physical | Where-Object {($_.Virtual -eq $false) -and ($_.InterfaceGuid -eq $GUID)}
          if ($NIC) {
             if ($NIC.status -eq 'Disabled') {
                try { $NIC | Enable-NetAdapter -Confirm:$false -ErrorAction Stop }
                catch { $StillOff += $GUID }
             }
-         } else { $GUID }
+         } else { $StillOff += $GUID }
       }
    } else {
       # But the depreciated wmi method for managing NICs is still needed for older systems.
@@ -597,7 +597,7 @@ if (Test-Path $BlockFile) {
 #region Initialize strings
 #    Some variables are of 'Global' scope because the invoke-command from within VBScript
 #    don't always work with 'Script' scope and sub-functions can't reference them.
-$ScriptVersion           = '3.7'
+$ScriptVersion           = '3.8'
 $LogonTaskName           = 'Initialize user notices'
 $LogonDescription        = 'Starts the process of checking and notifying of the need to reboot.'
 $DailyTaskName           = 'Daily pending reboot check'
@@ -2187,7 +2187,7 @@ if (($Reason -and ($TimeSinceBoot.TotalHours -ge 24)) -or ($Global:Set)) {
       $EventLogArgs = @{
          EntryType = 'Information'
          EventID   = 101   # User "snoozed" the reboot
-         Message   = $Global:LogEvents.get_item(101)
+         Message   = $Global:LogEvents.get_item(101) + "`n`nDeadline: $(get-date -Date $RebootPoint)"
       }
       Write-EventLog @Global:CommonLogArgs @EventLogArgs
 
