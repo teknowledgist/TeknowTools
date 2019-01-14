@@ -1874,7 +1874,7 @@ if (($Reason -and ($TimeSinceBoot.TotalHours -ge 24)) -or ($Global:Set)) {
        $Bid<br/>
        <hr style="height:3px" />
        <span ID="TooLate">
-         $($LaterText -replace '`n','<br />' -replace '<Day>',$RebootDOW -replace '<Date>',(get-date -Date $RebootPoint -Format d) -replace '<Time>',(get-date -Date $RebootPoint -Format t) )
+         $($LaterText -replace '`n','<br />' -replace '<Day>',$RebootDOW -replace '<Date>',(get-date -Date $RebootPoint -UFormat %x) -replace '<Time>',(get-date -Date $RebootPoint -Format t) )
          <button type='button' id='SnoozeButton' onclick='RecordSettings("Snooze")' autofocus>$LaterButton</button><br />
          <hr />
          <span ID="NoReminder" style="display:$ShowQuiet">
