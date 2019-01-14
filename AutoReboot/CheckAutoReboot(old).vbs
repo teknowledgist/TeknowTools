@@ -726,7 +726,7 @@
 '         <span ID="NoReminder" style="display:$ShowMore">
 '           <button type='button' id='OKButton' onclick='RecordSettings("OKquiet")'>OK. I will shutdown later.</button><br />
 '           This dialog will return when only <span id="FinalPeriod"></span>&nbsp;hours remain.<br />
-'           (at $(get-date $RebootPoint.addhours(-$Period) -Format f))
+'           (at $(get-date $RebootPoint.addhours(-$Period) -UFormat %x))
 '           <hr />
 '         </span>
 '       </span>
