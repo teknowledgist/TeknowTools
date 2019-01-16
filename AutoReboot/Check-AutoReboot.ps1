@@ -2145,7 +2145,8 @@ if (($Reason -and ($TimeSinceBoot.TotalHours -ge 24)) -or ($Global:Set)) {
       # Allow other users to manipulate the settings file in case of an unclean-reboot
       if (Test-Path $Global:SettingsPath) {
          $Acl = get-acl -Path $Global:SettingsPath
-         $rule = New-Object -TypeName system.security.accesscontrol.filesystemaccessrule -ArgumentList ('Authenticated Users','Modify','Allow')
+         $SID = New-Object -TypeName System.Security.Principal.SecurityIdentifier -ArgumentList @([Security.Principal.WellKnownSidType]::AuthenticatedUserSid, $null)
+         $rule = New-Object -TypeName system.security.accesscontrol.filesystemaccessrule -ArgumentList ($SID,'Modify','Allow')
          $Acl.setaccessrule($rule)
          set-acl -Path $Global:SettingsPath -AclObject $Acl
 

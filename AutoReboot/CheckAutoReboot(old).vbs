@@ -615,7 +615,15 @@
 '         exit sub
 '       End If
 '     End If
-'  
+'
+'     NowStamp = Now
+'     StampString = DatePart("yyyy",StampString) _
+'                     & "-" & DatePart("m",StampString) _
+'                     & "-" & DatePart("d",StampString) _
+'                     & "T" & DatePart("h",StampString) _
+'                     & ":" & DatePart("n",StampString) _
+'                     & ":" & DatePart("s",StampString)
+'
 '     If (fso.FileExists(ShutdownFilePath)) Then
 '       xmlDoc.Async = "False"
 '       xmlDoc.load ShutdownFilePath
@@ -626,7 +634,7 @@
 '
 '       Set Node = xmlDoc.selectSingleNode("//Acknowledgements")
 '         Set objStamp = xmlDoc.createElement("Stamp")
-'         objStamp.text = Now
+'         objStamp.text = StampString
 '         Node.appendChild objStamp
 '    
 '       Set Node = xmlDoc.selectSingleNode("//Shutdown")
@@ -656,7 +664,7 @@
 '       Set objRecord = xmlDoc.createElement("Acknowledgements")
 '       objRoot.appendChild objRecord
 '         Set objStamp = xmlDoc.createElement("Stamp")
-'         objStamp.text = Now
+'         objStamp.text = StampString
 '         Set objMark = xmlDoc.createAttribute("Mark")
 '         objMark.Value = 0
 '         objStamp.attributes.setNamedItem(objMark)
@@ -949,7 +957,8 @@
 '      # Allow other users to manipulate the acknowledgement file in case of an unclean-reboot
 '      if (Test-Path $AppSettings) {
 '         $Acl = get-acl $AppSettings
-'         $rule = New-Object  system.security.accesscontrol.filesystemaccessrule('Authenticated Users','Modify','Allow')
+'         $SID = New-Object -TypeName System.Security.Principal.SecurityIdentifier -ArgumentList @([Security.Principal.WellKnownSidType]::AuthenticatedUserSid, $null)
+'         $rule = New-Object -TypeName system.security.accesscontrol.filesystemaccessrule -ArgumentList ($SID,'Modify','Allow')
 '         $Acl.setaccessrule($rule)
 '         set-acl $AppSettings $Acl
 '
