@@ -1371,7 +1371,8 @@ Set WinScriptHost = Nothing
       $TaskFile = Join-Path $env:SystemRoot "System32\Tasks\$($Global:TaskFolder.path)\$Global:NICTaskName"
       if (Test-Path $TaskFile) {
          $Acl = get-acl -Path $TaskFile
-         $rule = New-Object -TypeName system.security.accesscontrol.filesystemaccessrule -ArgumentList ('Authenticated Users','Read','Allow')
+         $SID = New-Object -TypeName System.Security.Principal.SecurityIdentifier -ArgumentList @([Security.Principal.WellKnownSidType]::AuthenticatedUserSid, $null)
+         $rule = New-Object -TypeName system.security.accesscontrol.filesystemaccessrule -ArgumentList ($SID,'Read','Allow')
          $Acl.setaccessrule($rule)
          set-acl -Path $TaskFile -AclObject $Acl
       }
@@ -1772,7 +1773,15 @@ if (($Reason -and ($TimeSinceBoot.TotalHours -ge 24)) -or ($Global:Set)) {
                  "$NetOffTitle", _
                  vbOKOnly + vbExclamation + vbSystemModal)
      End If
-  
+
+     NowStamp = Now
+     StampString = DatePart("yyyy",StampString) _
+                     & "-" & DatePart("m",StampString) _
+                     & "-" & DatePart("d",StampString) _
+                     & "T" & DatePart("h",StampString) _
+                     & ":" & DatePart("n",StampString) _
+                     & ":" & DatePart("s",StampString)
+
      If (fso.FileExists(ShutdownFilePath)) Then
        xmlDoc.Async = "False"
        xmlDoc.load ShutdownFilePath
@@ -1783,7 +1792,7 @@ if (($Reason -and ($TimeSinceBoot.TotalHours -ge 24)) -or ($Global:Set)) {
 
        Set Node = xmlDoc.selectSingleNode("//Acknowledgements")
          Set objStamp = xmlDoc.createElement("Stamp")
-         objStamp.text = Now
+         objStamp.text = StampString
          Node.appendChild objStamp
     
        Set Node = xmlDoc.selectSingleNode("//Shutdown")
@@ -1817,7 +1826,7 @@ if (($Reason -and ($TimeSinceBoot.TotalHours -ge 24)) -or ($Global:Set)) {
        Set objRecord = xmlDoc.createElement("Acknowledgements")
        objRoot.appendChild objRecord
          Set objStamp = xmlDoc.createElement("Stamp")
-         objStamp.text = Now
+         objStamp.text = StampString
          Set objMark = xmlDoc.createAttribute("Mark")
          objMark.Value = 0
          objStamp.attributes.setNamedItem(objMark)
@@ -2038,7 +2047,7 @@ if (($Reason -and ($TimeSinceBoot.TotalHours -ge 24)) -or ($Global:Set)) {
                Add-Type -AssemblyName Windows.UI
 
                if (-not (Test-Path "$env:TEMP\WarningIcon.png")) {
-                  $Icon.ToBitmap().Save("$env:TEMP\WarningIcon.png", [System.Drawing.Imaging.ImageFormat]::png)
+                  $Icon.ToBitmap().Save("$env:TEMP\WarningIcon.png", [Drawing.Imaging.ImageFormat]::png)
                }
 
                # reference:  https://stackoverflow.com/questions/46814858
