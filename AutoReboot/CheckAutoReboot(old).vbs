@@ -617,12 +617,12 @@
 '     End If
 '
 '     NowStamp = Now
-'     StampString = DatePart("yyyy",StampString) _
-'                     & "-" & DatePart("m",StampString) _
-'                     & "-" & DatePart("d",StampString) _
-'                     & "T" & DatePart("h",StampString) _
-'                     & ":" & DatePart("n",StampString) _
-'                     & ":" & DatePart("s",StampString)
+'     StampString = DatePart("yyyy",NowStamp) _
+'                     & "-" & DatePart("m",NowStamp) _
+'                     & "-" & DatePart("d",NowStamp) _
+'                     & " " & DatePart("h",NowStamp) _
+'                     & ":" & DatePart("n",NowStamp) _
+'                     & ":" & DatePart("s",NowStamp)
 '
 '     If (fso.FileExists(ShutdownFilePath)) Then
 '       xmlDoc.Async = "False"
