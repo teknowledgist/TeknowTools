@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-   A process and interface for auto-rebooting after updates.
+   A startup script for gathering and storing Dell Warranty info.
 .DESCRIPTION
    When run as a startup script, this will query Dell's Warranty
    API (if the machine is a Dell) and store the XML returned as
