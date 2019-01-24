@@ -617,12 +617,12 @@
 '     End If
 '
 '     NowStamp = Now
-'     StampString = DatePart("yyyy",NowStamp) _
-'                     & "-" & DatePart("m",NowStamp) _
-'                     & "-" & DatePart("d",NowStamp) _
-'                     & " " & DatePart("h",NowStamp) _
-'                     & ":" & DatePart("n",NowStamp) _
-'                     & ":" & DatePart("s",NowStamp)
+'     StampString = year(NowStamp) _
+'                 & "-" & month(NowStamp) _
+'                 & "-" & day(NowStamp) _
+'                 & " " & hour(NowStamp) _
+'                 & ":" & minute(NowStamp) _
+'                 & ":" & second(NowStamp)
 '
 '     If (fso.FileExists(ShutdownFilePath)) Then
 '       xmlDoc.Async = "False"
@@ -658,7 +658,7 @@
 '       objRoot.appendChild objReason
 '
 '       Set objReason = xmlDoc.createElement("TriggerPoint")
-'       objReason.text = "$($FlagDate.ToString())"
+'       objReason.text = "$($FlagDate.ToString('yyyy-MM-dd HH:mm:ss'))"
 '       objRoot.appendChild objReason
 '
 '       Set objRecord = xmlDoc.createElement("Acknowledgements")
