@@ -841,7 +841,7 @@ If (-not $ThisTask) {
                      Where-Object {$_.name -eq 'taskname'} |
                      Select-Object -ExpandProperty "#text"
    } else {
-      $ThisTask = "Unknown" 
+      $ThisTask = 'Unknown' 
    }
 }
 $ErrorActionPreference = 'stop'
@@ -945,7 +945,9 @@ if ($RunningAsStartupScript -or ($Global:Set -imatch 'start')) {
    } else {
       # Recompile the Task Scheduler interface as a precaution.  Reference:
       #    https://www.ctrl.blog/entry/idle-task-scheduler-powershell
-      & "$env:windir\system32\wbem\mofcomp.exe" ([Environment]::GetFolderPath('System') + '\wbem\SchedProv.mof')
+      if (Test-Path ([Environment]::GetFolderPath('System') + '\wbem\SchedProv.mof')) {
+         & "$env:windir\system32\wbem\mofcomp.exe" ([Environment]::GetFolderPath('System') + '\wbem\SchedProv.mof')
+      }
    }
 
    # As a startup script:
@@ -1775,12 +1777,12 @@ if (($Reason -and ($TimeSinceBoot.TotalHours -ge 24)) -or ($Global:Set)) {
      End If
 
      NowStamp = Now
-     StampString = DatePart("yyyy",NowStamp) _
-                     & "-" & DatePart("m",NowStamp) _
-                     & "-" & DatePart("d",NowStamp) _
-                     & " " & DatePart("h",NowStamp) _
-                     & ":" & DatePart("n",NowStamp) _
-                     & ":" & DatePart("s",NowStamp)
+     StampString = year(NowStamp) _
+                 & "-" & month(NowStamp) _
+                 & "-" & day(NowStamp) _
+                 & " " & hour(NowStamp) _
+                 & ":" & minute(NowStamp) _
+                 & ":" & second(NowStamp)
 
      If (fso.FileExists(ShutdownFilePath)) Then
        xmlDoc.Async = "False"
@@ -1816,11 +1818,11 @@ if (($Reason -and ($TimeSinceBoot.TotalHours -ge 24)) -or ($Global:Set)) {
        objRoot.appendChild objReason
 
        Set objReason = xmlDoc.createElement("TriggerPoint")
-       objReason.text = "$($FlagDate.ToString())"
+       objReason.text = "$($FlagDate.ToString('yyyy-MM-dd HH:mm:ss'))"
        objRoot.appendChild objReason
 
        Set objReason = xmlDoc.createElement("RebootPoint")
-       objReason.text = "$($RebootPoint.ToString())"
+       objReason.text = "$($RebootPoint.ToString('yyyy-MM-dd HH:mm:ss'))"
        objRoot.appendChild objReason
 
        Set objRecord = xmlDoc.createElement("Acknowledgements")
@@ -2126,8 +2128,8 @@ if (($Reason -and ($TimeSinceBoot.TotalHours -ge 24)) -or ($Global:Set)) {
       $runspace.sessionstateproxy.setvariable('BalloonTitle',$bTitle)
       $runspace.sessionstateproxy.setvariable('HTATitle',$WindowTitle)
       $runspace.sessionstateproxy.setvariable('NapTime',$PauseTime)
-      $ps.AddScript($BalloonNoticeScriptBlock)
-      $ps.BeginInvoke()
+      $null = $ps.AddScript($BalloonNoticeScriptBlock)
+      $null = $ps.BeginInvoke()
 
       # If the user has not acknowledged for nearly the entire minimum lead time or 
       #    remaining time is running out, force user attention to the notice window.
