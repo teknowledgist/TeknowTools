@@ -598,6 +598,7 @@ if (Test-Path $BlockFile) {
 #    Some variables are of 'Global' scope because the invoke-command from within VBScript
 #    don't always work with 'Script' scope and sub-functions can't reference them.
 $ScriptVersion           = '3.8'
+$GracePeriod             = '24'   # Max hours since last boot during which no notice will appear
 $LogonTaskName           = 'Initialize user notices'
 $LogonDescription        = 'Starts the process of checking and notifying of the need to reboot.'
 $DailyTaskName           = 'Daily pending reboot check'
@@ -1474,8 +1475,8 @@ if ($Reason) {
 }
 
 # Don't give notice unless there is a pending reboot 
-#   AND the machine hasn't rebooted in 24 hours.
-if (($Reason -and ($TimeSinceBoot.TotalHours -ge 24)) -or ($Global:Set)) {
+#   AND the machine hasn't rebooted in the grace period.
+if (($Reason -and ($TimeSinceBoot.TotalHours -ge $GracePeriod)) -or ($Global:Set)) {
 
    # Want to know when the pending reboot was first identified.
    # This will be either now, or the log entry timestamp for the first user notification after 
@@ -2223,7 +2224,7 @@ if (($Reason -and ($TimeSinceBoot.TotalHours -ge 24)) -or ($Global:Set)) {
       $NextInterval = 1
    }
    
-} else { #End If($Reason and 24hrs since reboot)   
+} else { #End If($Reason and < $GracePeriod since reboot)   
    # Clean up any crud that may be left behind
    If ($Global:Settings) {
       Reset-AutoReboot -LogTime $LastBootTime.ToString('yyyy.MM.dd-HH.mm')
