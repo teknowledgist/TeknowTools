@@ -1,18 +1,24 @@
-﻿$Version = '2.2'
+﻿$Version = '2.4'
 <#
 .SYNOPSIS
    A startup/login script for mapping multiple shares.
 .DESCRIPTION
-   When run as a startup script, this will create or modify a
-   scheduled task to call the script to run again when a user logs in.
-   When run as a logon script (always elevated), this will create a 
-   scheduled task to immediately run the script again without elevation.
-   When run from a scheduled task, this will compare the AD security 
+   As a startup script, this will create or modify a scheduled 
+   task to call the script to run again when a user logs in.
+   
+   As a logon script (usually elevated) or with an argument
+   of "gpo", this will create a scheduled task to immediately run
+   the script again in the "normal" user session (i.e. w/o elevation).
+   
+   As a scheduled task, this will compare the AD security 
    groups of the user with a all AD security groups matching specified
    properties that identify them as defining access to file shares.
    The server and share are identified from other properties of the
    security groups and the set of defined drive letters are used
    to map the shares.  
+   
+   If no network is found, the script will pause to allow for a
+   user to establish a wireless connection.
    
    Users can define shares they don't want to be mapped (even ones 
    not mapped by this script) using a "DoNotMap" file.  The can also
@@ -21,7 +27,7 @@
    computers (e.g. in a classroom), but do map "home" when logging
    onto the primary office computer.
 .NOTES
-   Copyright 2015-2019 Erich Hammer
+   Copyright 2015-2020 Erich Hammer
 
    This script/information is free: you can redistribute it and/or modify 
    it under the terms of the GNU General Public License as published by 
@@ -125,6 +131,9 @@ $VerboseGroup = 'Test - TroubleshootScript'
 # A log file will be (over)written to the %APPDATA% location of the user profile.
 $LogFile = 'DriveMapping.log'
 
+# Name of the IT group/department users will recognize as providing this.
+$ITGroup = 'Systems'
+
 #endregion 
 #**************************************************
 
@@ -139,20 +148,66 @@ Function Write-Log {
       [Switch]$ToScreen
       )
    if (($VerbosePreference -ne 'SilentlyContinue') -and $ToScreen) { 
-      Write-Verbose ($info -join "`n") 
+      Write-Verbose ($info -join "`r`n") 
    }
-   Add-content $path "($(Get-Date))  $($info -join `"`n`")"
+   Add-content $path "($(Get-Date))  $($info -join `"`r`n`")"
 } # End of Write-Log function
 
-Function Is-Elevated {
+function New-MapType {
+   Param(
+      [Parameter(Mandatory = $true)]   
+      [ValidateNotNullOrEmpty()]
+      [string]$Name,
+
+      [Parameter(Mandatory = $true)]   
+      [ValidateScript({
+         If ($_ -imatch '^[d-z]$') { $true } 
+         else {Throw "`n'$_' is not a valid drive letter."}
+      })]
+      [string[]]$Letters,
+
+      [Parameter(Mandatory = $true)]   
+      [ValidateNotNullOrEmpty()]
+      [string]$Server,
+
+      [Parameter(Mandatory = $true)]   
+      [ValidateNotNullOrEmpty()]
+      [string]$GroupsPath,
+
+      [Parameter()][string]$FilterOn,
+      [Parameter()][string]$FilterString,
+      [Parameter()][string]$PathProperty,
+      [Parameter()][string]$PathPrefix,
+      [Parameter()][string]$PathPostfix,
+      [Parameter()][string[]]$Trailers
+   )
+
+   [PSCustomObject]@{
+      PSTypeName   = 'MapType'
+      Name         = $Name
+      Letters      = $Letters
+      Server       = $Server
+      GroupsPath   = $GroupsPath
+      FilterOn     = $FilterOn
+      FilterString = $FilterString
+      PathProperty = $PathProperty
+      PathPrefix   = $PathPrefix
+      PathPostfix  = $PathPostfix
+      Trailers     = $Trailers
+   }
+}
+
+Function Test-Elevation {
   # This will determine if this script is running under elevated credentials.
-  # Elevation is not a "normal" state for a script unless it is a Group 
-  # Policy logon script.  For Windows Vista and newer (assuming UAC is 
-  # enabled), a check for an administrator role will return true only if 
-  # the script is running elevated.  Limited User Accounts (LUAs) require
+  # Group Policy logon scripts often run in an intermediate elevation state.
+  # For Windows Vista and newer (assuming UAC is enabled), a check for an 
+  # administrator role will return true only if the script is running 
+  # elevated.  Limited User Accounts (LUAs) require
   # checking the current integrity level (Some additional information:
   # is at: http://msdn.microsoft.com/en-us/library/bb625963.aspx)
-  # Windows XP and earlier does not have UAC, so there is no elevation.
+  # Unelevated users normally run with integrity level SID S-1-16-8192.
+  # Group Policy logon scripts usually run with the SID S-1-16-8448 which
+  # is not "admin" level, but can still cause issues.
   
    If ([int](Get-WmiObject Win32_OperatingSystem | Select-Object -ExpandProperty BuildNumber) -ge 6000) {
       # Operating system is Vista or newer
@@ -162,7 +217,7 @@ Function Is-Elevated {
       # One-line method:
       #([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
 
-      if ($principal.IsInRole( $admin ) -or ([bool]((& "$env:windir\system32\whoami.exe" /all) -match 'S-1-16-8448'))) {
+      if ($principal.IsInRole( $admin ) -or ([bool]((& "$env:windir\system32\whoami.exe" /groups) -match 'S-1-16-8448'))) {
          # script is running elevated
          return $true
       } else {
@@ -175,12 +230,12 @@ Function Is-Elevated {
 } # end Is-Elevated
 
 
-Function Create-ScheduledMappingTask {
+Function Set-ScheduledMappingTask {
    # Makes a scheduled task to run a script either:
    #    upon user login -- when running as startup script
    #    immediately     -- when running as logon script
    # This is necessary due to UAC.  See here:
-   #    https://docs.microsoft.com/en-us/previous-versions/windows/it-pro/windows-vista/cc766208(v=ws.10)#group-policy-scripts-can-fail-due-to-user-account-control
+   #    http://technet.microsoft.com/en-us/library/cc766208(WS.10).aspx
 
    Param([Parameter(Mandatory = $true, Position = 0)][string]$TaskName,
       [Parameter(Mandatory = $true, Position = 3)][string]$ScriptFile
@@ -286,11 +341,11 @@ Function Create-ScheduledMappingTask {
 $host.ui.RawUI.WindowTitle = 'Mapping drives.  DO NOT CLOSE!'
 $Host.UI.RawUI.WindowSize = @{Width = 80; Height = $Host.UI.RawUI.WindowSize.Height}
 $Host.UI.RawUI.BufferSize = @{Width = 80; Height = $Host.UI.RawUI.BufferSize.Height}
-Write-Host '** Standard drive mapping script **' -ForegroundColor Green
+Write-Host "** $ITGroup standard drive mapping script **" -ForegroundColor Green
 Write-Host "Mapping file shares... This window should close soon.`n" 
 if (Test-Path "Filesystem::$env:HomeShare") {
       $msg = "`n****`nIf you would like to control to which computers any of your `n" +
-             "shares will map, contact your technical coordinator.`n****`n"
+             "shares will map, contact $ITGroup.`n****`n"
       Write-Host $msg -backgroundcolor yellow -foregroundcolor black
 }
 
@@ -348,7 +403,7 @@ if ($RunningAsSystem) {
       $taskversion = [version]$Matches[0].trim('()')
    }
    if ($taskversion -lt [version]$Version) {
-      $info = Create-ScheduledMappingTask -TaskName $AllUsersTaskName -ScriptFile $ScriptPath
+      $info = Set-ScheduledMappingTask -TaskName $AllUsersTaskName -ScriptFile $ScriptPath
       Write-Log $LogFilePath $info
    }
    Return
@@ -367,8 +422,8 @@ If ( Test-Path $LogFilePath ) {
    # and the script had an error or reached its conclusion...
    If (($LastLine.length -gt 256) -or ($LastLine -eq '--')) {
       # rename it to allow for the next log
-      $FileObj = Get-ChildItem $LogFilePath
-      $PrevLogFilePath = (join-path $FileObj.directoryname $FileObj.basename) + '.previous' + $FileObj.extension
+      $FileObj = Get-Item $LogFilePath
+      $PrevLogFilePath = (Join-Path $FileObj.directoryname $FileObj.basename) + '.previous' + $FileObj.extension
       if (Test-Path $PrevLogFilePath) {
          Remove-Item $PrevLogFilePath -Force
       }
@@ -376,53 +431,38 @@ If ( Test-Path $LogFilePath ) {
    }
 }
 
-if (Is-Elevated) {
+if (Test-Elevation -or ($args -contains 'gpo')) {
    if ($Global:TaskFolder.gettasks(1) | Where-Object {$_.Name -match '^Map Network Shares'}) {
       Return
    }
 
-   $LogFileHeader =  "*** Log of drive mapping script run as logon script ***`r`n" +
-                     "$(' '*22)*******************************************************`r`n" +
-                     "$(' '*22)This is running elevated.`r`n" +
-                     "$(' '*22)Creating scheduled task to re-run as unelevated user.`r`n`r`n"
+   $LogFileHeader =  "*** Log of drive mapping script run as GPO logon script ***`r`n" +
+                     "$(' '*22)***********************************************************`r`n" +
+                     "$(' '*22)This is running 'invisible' to the user.`r`n" +
+                     "$(' '*22)Creating a scheduled task to re-run this script in a possibly visible maner.`r`n`r`n"
    Write-log $LogFilePath $LogFileHeader
 
    $TempScriptPath = (Join-Path $env:TEMP 'TempMapDrives.ps1')
    try { Copy-Item -Path $PSCommandPath -Destination $TempScriptPath -Force -ErrorAction Stop }
    catch { Write-Log $LogFilePath $_.Exception.Message }
 
-   $info = Create-ScheduledMappingTask -TaskName "Map Network Shares - $env:username" -ScriptFile $TempScriptPath
-   Write-Log $LogFilePath $info
+   $info = Set-ScheduledMappingTask -TaskName "Map Network Shares - $env:username" -ScriptFile $TempScriptPath
+   Write-Log $LogFilePath ('Created: ' + $info.path),
+                           ('Enabled: ' + $info.enabled),
+                           ('Script to Run: ' + $TempScriptPath)
    Return
 }
 
-$LogFileHeader =  "*** Log of drive mapping script run as scheduled task ***`r`n" +
-                  "$(' '*22)*********************************************************`r`n"
+$LogFileHeader =  "*** Log of drive mapping script run as an normal user ***`r`n" +
+                  "$(' '*22)*************************************************************`r`n"
 Write-log $LogFilePath $LogFileHeader
 
-# Create a type for easier referencing
-Add-Type -TypeDefinition @'
-  public struct MapType {
-    public string Name;
-    public string[] Letters;
-    public string Server;
-    public string GroupsPath;
-    public string FilterOn;
-    public string FilterString;
-    public string PathProperty;
-    public string PathPrefix;
-    public string PathPostfix;
-    public string[] Trailers;
-  }
-'@
-
-# Requires PoShv3:
-# Update-TypeData -TypeName MapType -DefaultDisplayPropertySet name,letters,Server,FilterOn,pathproperty
-
+# Build the set of types of drive mappings
 $MapTypes = @()
 Foreach ($Item in $Localization) {
-   $MapTypes += New-Object MapType -Property $Item
+   $MapTypes += New-MapType @Item
 }
+Update-TypeData -TypeName MapType -DefaultDisplayPropertySet name,letters,Server,FilterOn,pathproperty
 
 # Test network connection
 Write-Log $LogFilePath "Testing network connection to primary server for '$($MapTypes[0].Name)' shares." -ToScreen
@@ -488,7 +528,9 @@ if ($env:homeshare) {
 }
 
 # Get the entire list (direct and indirect) groups of which the user is a member
-$UsersGroups = & "$env:windir\system32\whoami.exe" /groups /fo csv | convertfrom-csv | ForEach-Object { $_.'group name'.split('\')[1]}
+$UsersGroups = & "$env:windir\system32\whoami.exe" /groups /fo csv | convertfrom-csv | 
+                      Where-Object {$_.type -eq 'group'} | 
+                      ForEach-Object { $_.'group name'.split('\')[1]}
 
 #Check if debugging is neccessary
 if ($UsersGroups -contains $VerboseGroup) {
@@ -545,6 +587,7 @@ Foreach ($MapType in $MapTypes) {
       $Name = $adoRecordSet.Fields.Item('Name') | Select-Object -ExpandProperty value
       $PProp = $adoRecordSet.Fields.Item($MapType.PathProperty) | Select-Object -ExpandProperty value
 
+      # Need a path to map it
       if ($PProp) {
          # May as well store the path info from creation.
          # First strip any potential prefix or postfix,
@@ -557,6 +600,7 @@ Foreach ($MapType in $MapTypes) {
                if ($Path -notlike "$($MapType.Server)*") {
                   $Path = Join-path "\\$($MapType.Server)" $Path
                } else {
+                  # Starts with ServerName, just missing "\\"
                   $Path = "\\$Path"
                }
             }
@@ -679,15 +723,15 @@ Foreach ($UNCpath in $NoList) {
    if ($Existing = Get-WmiObject -Query $QueryString ) {
       try {
          (New-Object -ComObject WScript.Network).RemoveNetworkDrive($Existing.DeviceID,$true,$true)
-         $msg = "Disconnecting '$($Existing.ProviderName)' on $($Existing.DeviceID) as requested in:`n`t '$NoMapFilePath'."
+         $msg = "Disconnecting '$($Existing.ProviderName)' on $($Existing.DeviceID) as requested in:","`t '$NoMapFilePath'."
          Write-Log $LogFilePath $msg -ToScreen
       } catch {
-         Write-Log $LogFilePath "ERROR disconnecting '$($Existing.ProviderName)' on $($Existing.DeviceID): `n`t $_" -ToScreen
+         Write-Log $LogFilePath "ERROR disconnecting '$($Existing.ProviderName)' on $($Existing.DeviceID):","`t $_" -ToScreen
       }
    }
 }
 
-Write-Log $LogFilePath "End of script`n--"
+Write-Log $LogFilePath 'End of script','--'
 
 if ($VerbosePreference -ne 'SilentlyContinue') {
    Write-Host "`n"
