@@ -34,5 +34,5 @@ Unfortunately, it’s a challenge to fit best practice into practical reality.  
 ##### Comment
 Personally, I've never like the idea of on-site technical support using a domain account to log in -- especially one with rights beyond the local workstation.  You don't know what the normal user has done (intentionally or not) to compromise security and the logging in leaves behind pieces that make it easier for someone to attack that account.  A unique, local admin password that has been discovered is still less dangerous than an admin-of-all-workstations, domain account with a memorable, occasionally-changed password used by rushed technicians.  
 
-That said, having a domain account that is an administrator on all workstations (but has no other rights) is mighty handy on occasion.  Securing that is the reason for [something like this.](https://github.com/teknowledgist/TeknowTools/tree/master/Passwords)
+That said, having a domain account that is an administrator on all workstations (but has no other rights) is mighty handy on occasion.  Securing that is the reason for [something like this.](https://github.com/teknowledgist/TeknowTools/tree/master/Set-MemorablePassphrase)
  
