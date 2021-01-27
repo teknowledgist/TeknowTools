@@ -146,7 +146,7 @@ An [HTA](https://en.wikipedia.org/wiki/HTML_Application) is essentially an HTML 
     - Is converted to a PNG graphics file from [here](https://upload.wikimedia.org/wikipedia/commons/f/f5/Reset_button.svg)
     - Has then been encoded (using [this site](https://www.base64-image.de/) into [Base64](https://en.wikipedia.org/wiki/Base64) (with ~23,050 characters) to allow it to exist within this single text file.
     - Can be replaced with any Base64 version of a PNG graphic.
-    - Is at around line #664 of the script.  Just look for the **really** long line. :smile:
+    - Is at around line #672 of the script.  Just look for the **really** long line. :smile:
 
 ###### VBScript polyglot:
 

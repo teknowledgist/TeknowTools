@@ -72,11 +72,6 @@
    warnings that a reboot is pending/scheduled.  As time expires, warnings
    will occur more frequently.
    Default Value:  4
-.PARAMETER GracePeriod
-   The number of hours after a boot during which pending reboot warnings
-   will be suppressed.  This prevents users who regularly reboot
-   from being bothered by too many notifications.
-   Default Value:  24
 .PARAMETER Purl
    The url to view the policy named in the Policy parameter.  This will
    open in the user's default browser.
@@ -170,9 +165,6 @@ Param(
 
    # Default hours between checks/warnings.
    [int]$Period = 4,
-
-   # Number of hours after a reboot when warnings are suppressed.
-   [int]$GracePeriod = 24,
 
    # The URL to the policy
    [string]$Purl = 'http://www.school.edu/autorebootpolicy.php',
