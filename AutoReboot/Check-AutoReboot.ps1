@@ -1101,7 +1101,7 @@ WinScriptHost.Run "powershell.exe" & PoShswitches & CHR(34) & PoShcmd & Chr(34),
 Set WinScriptHost = Nothing 
 "@
       $VBwrapper = $VBwrapper -replace '<BlockFile>',$BlockFile
-      $VBpolyglot = $VBwrapper.split("`n") | 
+      $VBpolyglot = $VBwrapper -split "`r`n" | 
                         ForEach-Object {
                            if ($_ -cmatch '^#ReplaceThisLine') {
                               $ModCode
@@ -2149,11 +2149,13 @@ if (($Reason -and ($TimeSinceBoot.TotalHours -ge $GracePeriod)) -or ($Global:Set
       $null = $ps.AddScript($BalloonNoticeScriptBlock)
       $null = $ps.BeginInvoke()
 
-      # If the user has not acknowledged for nearly the entire minimum lead time or 
-      #    remaining time is running out, force user attention to the notice window.
-      if (((New-TimeSpan -Start $FlagDate -End (Get-Date)).TotalHours -ge ($MinLead - $Period/2)) -or
-            ($Remaining -le $Period*60)) {
-         (New-Object -ComObject Shell.Application).minimizeall()
+      # If remaining time is running out or the user has not acknowledged 
+      #    for nearly the entire minimum lead time, force user attention to the notice window.
+      if (($Remaining -le $Period*60) -or 
+            (-not ($Global:Settings) -and 
+               ((New-TimeSpan -Start $FlagDate -End (Get-Date)).TotalHours -ge ($MinLead - $Period/2))
+            )
+         ) { (New-Object -ComObject Shell.Application).minimizeall()
       }
 
       # Now open the HTA
