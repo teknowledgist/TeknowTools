@@ -34,7 +34,7 @@
    The maximum length of the resulting password.
    Default value: 1.75*Minimum
 .PARAMETER TimeStamp
-   Only log the passphrase.  Do not include a timestamp.
+   Include a timestamp for each passphrase in the log.
    Default value: False
 .PARAMETER Overwrite
    The previous log file will be overwritten.  Without this switch, the created
@@ -54,10 +54,10 @@
    This will set a 12+ character passphrase for the tempvisitor account in the 
    default domain and append it with a timestamp to "tempvisitor.log" in the temp directory.
 .Example 
-   .\Set-MemorablePassphrase.ps1 -NetID tempvisitor -logpath \\FS1\Logs\VPass.txt -timestamp -overwrite
+   .\Set-MemorablePassphrase.ps1 -NetID tempvisitor -logpath \\FS1\Logs\VPass.txt -overwrite
    The same as above, but logged to a shared filepath containing only the current passphrase.
 .Example
-   .\Set-MemorablePassphrase.ps1 HDuser 20 \\FS1\Logs\Secret.txt -Dictionary .\LatinWords.txt
+   .\Set-MemorablePassphrase.ps1 HDuser 20 \\FS1\Logs\Secret.txt -Dictionary .\LatinWords.txt -timestamp
    This will set the password for the HDuser account in the default 
    domain to a 20+ character passphrase derived from a custom dictionary 
    file and append the result (with a timestamp) to a text file on FS1.
@@ -180,10 +180,10 @@ If ($NetID -eq 'password') {
    $User.psbase.CommitChanges()
 
    if ($LogPath) {
-	     $LogString = $Passphrase
-	     if ($TimeStamp) { $LogString = $LogString + '  -- set at ' + (get-date).tostring('g') }
-	     if ($Overwrite) {Set-content -Path $LogPath -Value $LogString}
-	     else {add-content -Path $LogPath -Value $LogString}
+      $LogString = $Passphrase
+      if ($TimeStamp) { $LogString = $LogString + '  -- set at ' + (get-date).tostring('g') }
+      if ($Overwrite) {Set-content -Path $LogPath -Value $LogString}
+      else {add-content -Path $LogPath -Value $LogString}
    }
 }
 
