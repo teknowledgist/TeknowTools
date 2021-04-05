@@ -59,8 +59,9 @@ if ($Key) {
    if ($env:username -eq "$env:computername`$") {
       Set-ItemProperty -Path $KeyPath -Name 'SD' -Value $binSDDLStr -Force
    } else {
-      # Not running as SYSTEM, so create a scheduled task and run that as SYSTEM
-      $updateTaskName = 'Set-A-Task-Free'
+      # Not running as SYSTEM, so create a scheduled task and run that as SYSTEM.
+      # (Random name prevents possible collisions when run in rapid succession.)
+      $updateTaskName = "Set-A-Task-Free($(Get-Random))"
       # A .bat is required because the string is too long to send straight to SchTasks.exe
       "reg.exe add `"$($Key.name)`" /f /v SD /t REG_BINARY /d $binSDDLStr" | 
             Out-File -FilePath "$env:Temp\$updateTaskName.bat" -Encoding ascii -Force
