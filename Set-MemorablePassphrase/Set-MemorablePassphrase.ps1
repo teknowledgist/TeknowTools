@@ -21,14 +21,16 @@
 .PARAMETER NetID
    The LogonName of the user whose password will be set.  For testing purposes,
    if the NetID is "password", an example passphrase will be generated and 
-   output to the console only but not logged.
+   returned but not set an account password nor log anything.
    Default value: "password"
 .PARAMETER Minimum
    The minimum length of the resulting password.
    Default value: 12
 .PARAMETER LogPath
    Full path to the log of the passphrase.  For it to be useful, it probably 
-   should be on a network share with appropriately set ACL.
+   should be on a network share with appropriately set ACL.  If this value
+   is $null or an empty string, the user account password will be updated,
+   but there will be no log.  The passphrase will be returned.
    Default value: <temp directory>\<NetID>.log
 .PARAMETER Maximum
    The maximum length of the resulting password.
@@ -169,7 +171,7 @@ foreach ($i in (0..($Words.count-1))) {
 
 If ($NetID -eq 'password') {
    # For testing, output instead of changing the password for this dummy account
-   $Passphrase
+   Return $Passphrase
 } else {
    $adsi = New-Object System.directoryServices.directorySearcher([ADSI]"LDAP://$Domain")
    $adsi.filter = "(&(objectClass=Person)(samAccountName=$NetID))"
@@ -184,6 +186,8 @@ If ($NetID -eq 'password') {
       if ($TimeStamp) { $LogString = $LogString + '  -- set at ' + (get-date).tostring('g') }
       if ($Overwrite) {Set-content -Path $LogPath -Value $LogString}
       else {add-content -Path $LogPath -Value $LogString}
+   } else {
+      Return $Passphrase
    }
 }
 
