@@ -49,7 +49,7 @@ If ((Get-WmiObject Win32_ComputerSystem).Manufacturer -match "Dell") {
    $BiosURLstub = $CatalogXML.Manifest.SoftwareComponent | 
                      Where-Object {
                         ($_.name.display.'#cdata-section' -match 'BIOS') -and 
-                        ($SkuValue -contains $_.SupportedSystems.Brand.Model.SystemID)
+                        (Compare-Object $SkuValue $_.SupportedSystems.Brand.Model.SystemID -ExcludeDifferent -IncludeEqual)
                      } | Sort-Object ReleaseDate | Select-Object -First 1
 
    $BIOSURL = $DownloadBase + '/' + $BiosURLstub.Path.trim('/')
