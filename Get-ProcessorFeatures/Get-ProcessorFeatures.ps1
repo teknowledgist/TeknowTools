@@ -10,10 +10,10 @@
    To read about the features identified, see here:
    https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-isprocessorfeaturepresent
 .OUTPUT
-   Returns a hashtable of feature names and a boolean for their availability.
+   Returns an object with feature names and a boolean for their availability.
 .Example
    $Features = Get-ProcessorFeatures()
-   if ($Features["AVX512F_INSTRUCTIONS"]) {
+   if ($Features.AVX512F_INSTRUCTIONS) {
       Write-Host "This processor has AVX512 features."
    }
 .NOTES
@@ -43,7 +43,7 @@ public static extern bool IsProcessorFeaturePresent(
 $type = Add-Type -MemberDefinition $Signature -Name Win32Utils -Namespace GetProcessorFeatures -PassThru
    
 # https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-isprocessorfeaturepresent
-$FeatureList = @{
+$FeatureIDs = [ordered]@{
    '0' = 'FLOATING_POINT_PRECISION_ERRATA' #On a Pentium, a floating-point precision error can occur in rare circumstances.   
    '1' = 'FLOATING_POINT_EMULATED' #Floating-point operations are emulated using a software emulator.   
    '2' = 'COMPARE_EXCHANGE_DOUBLE' #The atomic compare and exchange operation (cmpxchg) is available.   
@@ -83,9 +83,11 @@ $FeatureList = @{
    '45' = 'ARM_V83_LRCPC_INSTRUCTIONS' #This Arm processor implements the Arm v8.3 LRCPC instructions (for example, LDAPR). Note that certain Arm v8.2 CPUs may optionally support the LRCPC instructions.   
 }
 
-Foreach ($Feature in $FeatureList.keys) {
-   @{$FeatureList["$Feature"] = $type::IsProcessorFeaturePresent($Feature)}
+$Features = @{}
+Foreach ($ID in $FeatureIDs.keys) {
+   $Features.Add($FeatureIDs["$ID"],$type::IsProcessorFeaturePresent($ID))
 }
+[PSCustomObject]$Features
 
 
 
