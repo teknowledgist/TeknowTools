@@ -20,7 +20,7 @@ Version History
       Initial release.
 
 .LINK
-Sourcecode:  
+Sourcecode:  https://github.com/teknowledgist/TeknowTools/tree/master/Convert-RegtoPosh
 
 .Parameter Path
    Optional absolute or relative path to a REG file or to a directory.  If not provided, 
@@ -164,14 +164,14 @@ Process {
       $Commands = @()
       $addedpath = @()
       $joinedlines = @()
-      [string]$text = $nul
+      [string]$text = $null
       for ($i = 0; $i -lt $FileContent.count; $i++) {
          if ($FileContent[$i].EndsWith("\")) {  # "\" is line continuation for .REG files
             $text = $text + $FileContent[$i].trimend('\').trim()
          }
          else {
             $joinedlines += $text + $FileContent[$i]
-            [string]$text = $nul
+            [string]$text = $null
          }
       }
       Write-Debug "Contents of registry file: $((Get-ChildItem $File).Name) `r`n $($joinedlines | Out-String)"
@@ -216,7 +216,7 @@ Process {
                { $FullLine -match "=-" } {
                   $delete = $true
                   Write-Debug ' Registry item remove detected.'
-                  #Pause 
+
                }
                { $FullLine -match '("|@)="' } {
                   $type = "string"
